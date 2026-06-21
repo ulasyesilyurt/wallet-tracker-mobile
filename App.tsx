@@ -1,45 +1,53 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
+import React, {useEffect} from 'react';
+import {PermissionsAndroid, Platform, SafeAreaView, StatusBar, StyleSheet} from 'react-native';
+import messaging from '@react-native-firebase/messaging';
+import {AuthProvider} from './src/auth/AuthContext';
+import {RootNavigator} from './src/navigation/RootNavigator';
+import {PushRegistrationManager} from './src/notifications/PushRegistrationManager';
+import {colors} from './src/theme/colors';
 
-import { NewAppScreen } from '@react-native/new-app-screen';
-import { StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
-import {
-  SafeAreaProvider,
-  useSafeAreaInsets,
-} from 'react-native-safe-area-context';
+async function requestAndroidNotificationPermission() {
+  if (Platform.OS !== 'android' || Platform.Version < 33) {
+    return;
+  }
 
-function App() {
-  const isDarkMode = useColorScheme() === 'dark';
+  try {
+    const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
 
-  return (
-    <SafeAreaProvider>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <AppContent />
-    </SafeAreaProvider>
-  );
+    console.log('[notifications] POST_NOTIFICATIONS permission result', {result});
+  } catch (error) {
+    console.log('[notifications] POST_NOTIFICATIONS permission request failed', error);
+  }
 }
 
-function AppContent() {
-  const safeAreaInsets = useSafeAreaInsets();
+export default function App() {
+  useEffect(() => {
+    messaging()
+      .registerDeviceForRemoteMessages()
+      .then(() => {
+        console.log('[notifications] device registered for remote messages');
+      })
+      .catch(error => {
+        console.log('[notifications] registerDeviceForRemoteMessages failed', error);
+      });
+
+    void requestAndroidNotificationPermission();
+  }, []);
 
   return (
-    <View style={styles.container}>
-      <NewAppScreen
-        templateFileName="App.tsx"
-        safeAreaInsets={safeAreaInsets}
-      />
-    </View>
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
+      <AuthProvider>
+        <PushRegistrationManager />
+        <RootNavigator />
+      </AuthProvider>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: colors.background,
   },
 });
-
-export default App;
