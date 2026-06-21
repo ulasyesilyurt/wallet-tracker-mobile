@@ -42,12 +42,13 @@ function normalizeAddress(value: string) {
 
 export function AddWalletScreen({onBack, onSaved}: AddWalletScreenProps) {
   const [address, setAddress] = useState('');
-  const [chainId, setChainId] = useState(DEFAULT_CHAIN_ID);
+  const [selectedChains, setSelectedChains] = useState<string[]>([DEFAULT_CHAIN_ID]);
   const [label, setLabel] = useState('');
   const [trackTypesState, setTrackTypesState] = useState<TrackTypeState>(INITIAL_TRACK_TYPE_STATE);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [addressError, setAddressError] = useState<string | null>(null);
+  const [chainsError, setChainsError] = useState<string | null>(null);
   const [trackTypesError, setTrackTypesError] = useState<string | null>(null);
 
   const selectedTrackTypes = useMemo(() => {
@@ -59,6 +60,20 @@ export function AddWalletScreen({onBack, onSaved}: AddWalletScreenProps) {
       ...current,
       [trackType]: nextValue,
     }));
+  }
+
+  function toggleChain(chainId: string) {
+    setSelectedChains(current => {
+      const nextChains = current.includes(chainId)
+        ? current.filter(value => value !== chainId)
+        : [...current, chainId];
+
+      if (chainsError && nextChains.length > 0) {
+        setChainsError(null);
+      }
+
+      return nextChains;
+    });
   }
 
   function validateForm() {
@@ -73,6 +88,13 @@ export function AddWalletScreen({onBack, onSaved}: AddWalletScreenProps) {
       hasError = true;
     } else {
       setAddressError(null);
+    }
+
+    if (selectedChains.length === 0) {
+      setChainsError('Select at least one chain');
+      hasError = true;
+    } else {
+      setChainsError(null);
     }
 
     if (selectedTrackTypes.length === 0) {
@@ -100,10 +122,10 @@ export function AddWalletScreen({onBack, onSaved}: AddWalletScreenProps) {
 
     try {
       const wallet = await createWallet({
-        chainId,
         address: validation.normalizedAddress,
         label: label.trim() || undefined,
         trackTypes: selectedTrackTypes,
+        enabledChains: selectedChains,
       });
 
       onSaved(wallet);
@@ -159,15 +181,15 @@ export function AddWalletScreen({onBack, onSaved}: AddWalletScreenProps) {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.label}>Chain</Text>
+        <Text style={styles.label}>Chains</Text>
         <View style={styles.chainOptionsRow}>
           {SUPPORTED_WALLET_CHAIN_OPTIONS.map(option => {
-            const selected = option.chainId === chainId;
+            const selected = selectedChains.includes(option.chainId);
 
             return (
               <Pressable
                 key={option.chainId}
-                onPress={() => setChainId(option.chainId)}
+                onPress={() => toggleChain(option.chainId)}
                 style={[
                   styles.chainOptionSelected,
                   styles.chainOptionSelectable,
@@ -175,12 +197,13 @@ export function AddWalletScreen({onBack, onSaved}: AddWalletScreenProps) {
                 ]}>
                 <Text style={styles.chainOptionText}>{option.label}</Text>
                 <Text style={styles.chainOptionHint}>
-                  {selected ? 'Selected network' : 'Tap to use'}
+                  {selected ? 'Selected' : 'Tap to add'}
                 </Text>
               </Pressable>
             );
           })}
         </View>
+        {chainsError ? <Text style={styles.errorText}>{chainsError}</Text> : null}
       </View>
 
       <View style={styles.section}>

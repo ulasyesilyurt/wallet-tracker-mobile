@@ -14,7 +14,7 @@ import {deleteWallet, updateWallet} from '../api/wallets';
 import {colors} from '../theme/colors';
 import type {Wallet, WalletTrackType} from '../types/wallet';
 import {shortenAddress} from '../utils/format';
-import {formatChainDisplayName} from '../utils/chains';
+import {formatWalletChainsLabel} from '../utils/chains';
 
 type WalletEditScreenProps = {
   wallet: Wallet;
@@ -160,7 +160,7 @@ export function WalletEditScreen({wallet, onBack, onSaved, onDeleted}: WalletEdi
         showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.title}>{wallet.label || 'Wallet settings'}</Text>
-          <Text style={styles.subtitle}>{shortenAddress(wallet.address)} · {formatChainDisplayName(wallet.chainId)}</Text>
+          <Text style={styles.subtitle}>{shortenAddress(wallet.address)} · {formatWalletChainsLabel(wallet.chainId, wallet.enabledChains)}</Text>
         </View>
 
         <View style={styles.section}>

@@ -8,7 +8,7 @@ import type {Wallet} from '../types/wallet';
 import {getWalletPortfolioSummary, type WalletPortfolioSummary} from '../api/portfolioSummary';
 import {colors} from '../theme/colors';
 import {formatUsd, shortenAddress} from '../utils/format';
-import {formatChainDisplayName} from '../utils/chains';
+import {formatWalletChainsLabel} from '../utils/chains';
 import {
   getPerformanceUnavailableReason,
   getValidatedPerformance,
@@ -116,7 +116,7 @@ export function WalletDetailScreen({wallet, initialTab, onBack, onEdit}: WalletD
   const hasPerformanceHistory =
     validatedPerformance?.change != null &&
     validatedPerformance.changePercent != null;
-  const chainLabel = formatChainDisplayName(wallet.chainId);
+  const chainLabel = formatWalletChainsLabel(wallet.chainId, wallet.enabledChains);
   const holdingsStatusText =
     portfolioSummary?.holdingsTotalUsd == null ? 'Unavailable' : null;
   const positionsStatusText =

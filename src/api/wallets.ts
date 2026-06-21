@@ -13,16 +13,18 @@ type WalletResponse = {
 };
 
 export type CreateWalletPayload = {
-  chainId: string;
   address: string;
   label?: string;
   trackTypes: WalletTrackType[];
+  enabledChains: string[];
+  chainId?: string;
 };
 
 type UpdateWalletPayload = {
   address?: string;
   label?: string;
   trackTypes?: WalletTrackType[];
+  enabledChains?: string[];
 };
 
 function requireAuthenticatedUserId() {

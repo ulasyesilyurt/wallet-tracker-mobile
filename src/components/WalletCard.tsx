@@ -4,7 +4,7 @@ import type {Wallet} from '../types/wallet';
 import {colors} from '../theme/colors';
 import {getWalletAvatarTheme} from '../utils/avatar';
 import {formatUsdCompact, shortenAddress} from '../utils/format';
-import {formatChainDisplayName} from '../utils/chains';
+import {formatWalletChainsLabel} from '../utils/chains';
 
 type WalletCardProps = {
   wallet: Wallet;
@@ -18,7 +18,7 @@ type WalletCardProps = {
 export function WalletCard({wallet, totalValueUsd, changePercent, secondaryLabel, isBalanceLoading, onPress}: WalletCardProps) {
   const compactValue = formatUsdCompact(totalValueUsd);
   const avatarTheme = getWalletAvatarTheme(wallet.address, wallet.label);
-  const chainLabel = formatChainDisplayName(wallet.chainId);
+  const chainLabel = formatWalletChainsLabel(wallet.chainId, wallet.enabledChains);
   const addressLine = `${shortenAddress(wallet.address)} • ${chainLabel}`;
   const performanceLabel =
     typeof changePercent === 'number' && Number.isFinite(changePercent)
