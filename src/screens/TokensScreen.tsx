@@ -146,7 +146,7 @@ export function TokensScreen({walletId}: TokensScreenProps) {
   return (
     <FlatList
       data={visibleTokenHoldings}
-      keyExtractor={item => item.tokenAddress ?? 'native-eth'}
+      keyExtractor={item => `${item.chainId ?? 'unknown'}:${item.tokenAddress ?? 'native-eth'}`}
       contentContainerStyle={visibleTokenHoldings.length === 0 && suspiciousTokenHoldings.length === 0 ? styles.emptyContent : styles.listContent}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={() => void loadHoldings(true)} tintColor={colors.accent} />
@@ -201,7 +201,7 @@ export function TokensScreen({walletId}: TokensScreenProps) {
             {showSuspiciousTokens ? (
               <View style={styles.suspiciousList}>
                 {suspiciousTokenHoldings.map((holding, index) => (
-                  <View key={holding.tokenAddress ?? 'suspicious-native-' + index}>
+                  <View key={`${holding.chainId ?? 'unknown'}:${holding.tokenAddress ?? 'suspicious-native-' + index}`}>
                     <TokenHoldingCard holding={holding} subdued />
                     {holding.suspicionReasons.length > 0 ? (
                       <Text style={styles.suspicionReasonText}>

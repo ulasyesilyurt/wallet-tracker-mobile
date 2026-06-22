@@ -1,6 +1,7 @@
 import {apiRequest} from './client';
 
 export type TokenHolding = {
+  chainId?: string;
   tokenAddress: string | null;
   symbol: string | null;
   name: string | null;
