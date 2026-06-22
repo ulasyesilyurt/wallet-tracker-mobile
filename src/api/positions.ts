@@ -1,6 +1,7 @@
 import {apiRequest} from './client';
 
 export type WalletPosition = {
+  chainId?: string;
   protocolName: string;
   positionType: string;
   assetName: string;
@@ -12,6 +13,7 @@ export type WalletPosition = {
 export type WalletPositions = {
   walletId: string;
   chainId: string;
+  enabledChains?: string[];
   positions: WalletPosition[];
 };
 

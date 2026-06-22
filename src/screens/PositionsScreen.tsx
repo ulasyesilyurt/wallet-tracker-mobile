@@ -11,7 +11,7 @@ import {
 import {getWalletPositions, type WalletPosition, type WalletPositions} from '../api/positions';
 import {colors} from '../theme/colors';
 import {formatPositionTokenAmount} from '../utils/format';
-import {formatChainDisplayName} from '../utils/chains';
+import {formatChainDisplayName, formatWalletChainsLabel} from '../utils/chains';
 
 type PositionsScreenProps = {
   walletId: string;
@@ -63,6 +63,7 @@ function PositionCard({position}: {position: WalletPosition}) {
   const valueUsdText = formatValueUsd(position.valueUsd);
   const formattedAmount = formatPositionTokenAmount(position.amount);
   const positionTypeLabel = formatPositionTypeLabel(position.positionType);
+  const positionChainLabel = formatChainDisplayName(position.chainId ?? '');
 
   return (
     <View style={styles.positionCard}>
@@ -90,8 +91,15 @@ function PositionCard({position}: {position: WalletPosition}) {
         </View>
       </View>
       <View style={styles.positionMetaRow}>
-        <View style={styles.metaPill}>
-          <Text style={styles.positionMeta}>{positionTypeLabel}</Text>
+        <View style={styles.positionMetaPills}>
+          <View style={styles.metaPill}>
+            <Text style={styles.positionMeta}>{positionTypeLabel}</Text>
+          </View>
+          {positionChainLabel ? (
+            <View style={styles.metaPill}>
+              <Text style={styles.positionMeta}>{positionChainLabel}</Text>
+            </View>
+          ) : null}
         </View>
         <Text style={styles.positionMetaSecondary}>Protocol asset</Text>
       </View>
@@ -151,12 +159,12 @@ export function PositionsScreen({walletId}: PositionsScreenProps) {
 
   const protocolPositions = positions?.positions ?? [];
   const totalPositionsValue = formatValueUsd(getTotalPositionsValue(protocolPositions));
-  const chainLabel = formatChainDisplayName(positions?.chainId ?? '');
+  const chainLabel = formatWalletChainsLabel(positions?.chainId ?? '', positions?.enabledChains);
 
   return (
     <FlatList
       data={protocolPositions}
-      keyExtractor={(item, index) => item.protocolName + ':' + item.assetSymbol + ':' + index}
+      keyExtractor={(item, index) => `${item.chainId ?? 'unknown'}:${item.protocolName}:${item.assetSymbol}:${index}`}
       contentContainerStyle={protocolPositions.length === 0 ? styles.emptyContent : styles.listContent}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={() => void loadPositions(true)} tintColor={colors.accent} />
@@ -346,6 +354,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: 12,
+  },
+  positionMetaPills: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 1,
   },
   metaPill: {
     paddingHorizontal: 9,
