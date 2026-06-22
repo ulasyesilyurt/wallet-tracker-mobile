@@ -3,6 +3,7 @@ import {StyleSheet, Text, View} from 'react-native';
 import type {WalletEvent} from '../api/events';
 import {colors} from '../theme/colors';
 import {formatActivityAmount, shortenAddress} from '../utils/format';
+import {formatChainDisplayName} from '../utils/chains';
 
 type EventCardProps = {
   event: WalletEvent;
@@ -71,6 +72,7 @@ export function EventCard({event}: EventCardProps) {
   const walletLabel = event.walletLabel || event.walletAddress
     ? event.walletLabel || shortenAddress(event.walletAddress ?? '')
     : null;
+  const chainLabel = formatChainDisplayName(event.chainId).toUpperCase();
 
   return (
     <View style={styles.card}>
@@ -89,6 +91,13 @@ export function EventCard({event}: EventCardProps) {
             <Text style={styles.eventType} numberOfLines={1}>
               {formatEventType(event.eventType)}
             </Text>
+            {chainLabel ? (
+              <View style={styles.chainPill}>
+                <Text style={styles.chainPillText} numberOfLines={1}>
+                  {chainLabel}
+                </Text>
+              </View>
+            ) : null}
           </View>
           <Text style={styles.timestamp}>{formatOccurredAt(event.occurredAt)}</Text>
           {counterpartyLabel ? (
@@ -164,9 +173,23 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
   },
   eventType: {
-    flex: 1,
     fontSize: 12,
     color: colors.textSecondary,
+  },
+  chainPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: colors.elevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignSelf: 'flex-start',
+  },
+  chainPillText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    letterSpacing: 0.6,
   },
   timestamp: {
     marginTop: 4,
