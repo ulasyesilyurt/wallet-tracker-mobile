@@ -8,7 +8,7 @@ import type {Wallet} from '../types/wallet';
 import {getWalletPortfolioSummary, type WalletPortfolioSummary} from '../api/portfolioSummary';
 import {colors} from '../theme/colors';
 import {formatUsd, shortenAddress} from '../utils/format';
-import {formatWalletChainsLabel} from '../utils/chains';
+import {formatChainDisplayName, formatWalletChainsLabel, getWalletEnabledChains} from '../utils/chains';
 import {
   getPerformanceUnavailableReason,
   getValidatedPerformance,
@@ -16,6 +16,10 @@ import {
 } from '../utils/performance';
 
 export type DetailTab = 'tokens' | 'history' | 'positions';
+type NetworkFilterOption = {
+  value: string | null;
+  label: string;
+};
 
 type WalletDetailScreenProps = {
   wallet: Wallet;
@@ -26,6 +30,8 @@ type WalletDetailScreenProps = {
 
 export function WalletDetailScreen({wallet, initialTab, onBack, onEdit}: WalletDetailScreenProps) {
   const [activeTab, setActiveTab] = useState<DetailTab>(initialTab ?? 'history');
+  const [selectedNetwork, setSelectedNetwork] = useState<string | null>(null);
+  const [networkMenuOpen, setNetworkMenuOpen] = useState(false);
   const [portfolioSummary, setPortfolioSummary] =
     useState<WalletPortfolioSummary | null>(null);
   const [walletPerformance, setWalletPerformance] = useState<PortfolioPerformance | null>(null);
@@ -43,6 +49,11 @@ export function WalletDetailScreen({wallet, initialTab, onBack, onEdit}: WalletD
 
     setActiveTab(nextTab);
   }, [initialTab, wallet.id]);
+
+  useEffect(() => {
+    setSelectedNetwork(null);
+    setNetworkMenuOpen(false);
+  }, [wallet.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -117,6 +128,15 @@ export function WalletDetailScreen({wallet, initialTab, onBack, onEdit}: WalletD
     validatedPerformance?.change != null &&
     validatedPerformance.changePercent != null;
   const chainLabel = formatWalletChainsLabel(wallet.chainId, wallet.enabledChains);
+  const networkOptions = getWalletEnabledChains(wallet.chainId, wallet.enabledChains).map((chainId) => ({
+    value: chainId,
+    label: formatChainDisplayName(chainId),
+  }));
+  const allNetworkOptions: NetworkFilterOption[] = [
+    {value: null, label: 'All Networks'},
+    ...networkOptions,
+  ];
+  const selectedNetworkLabel = allNetworkOptions.find((option) => option.value === selectedNetwork)?.label ?? 'All Networks';
   const holdingsStatusText =
     portfolioSummary?.holdingsTotalUsd == null ? 'Unavailable' : null;
   const positionsStatusText =
@@ -230,6 +250,39 @@ export function WalletDetailScreen({wallet, initialTab, onBack, onEdit}: WalletD
         </View>
       </View>
 
+      <View style={styles.networkFilterWrap}>
+        <Text style={styles.networkFilterLabel}>Network</Text>
+        <View style={styles.networkDropdownContainer}>
+          <Pressable
+            style={styles.networkDropdownButton}
+            onPress={() => setNetworkMenuOpen((current) => !current)}>
+            <Text style={styles.networkDropdownButtonText}>{selectedNetworkLabel}</Text>
+            <Text style={styles.networkDropdownChevron}>{networkMenuOpen ? '▴' : '▾'}</Text>
+          </Pressable>
+          {networkMenuOpen ? (
+            <View style={styles.networkDropdownMenu}>
+              {allNetworkOptions.map((option) => {
+                const selected = option.value === selectedNetwork;
+
+                return (
+                  <Pressable
+                    key={option.value ?? 'all-networks'}
+                    style={[styles.networkDropdownItem, selected ? styles.networkDropdownItemActive : null]}
+                    onPress={() => {
+                      setSelectedNetwork(option.value);
+                      setNetworkMenuOpen(false);
+                    }}>
+                    <Text style={[styles.networkDropdownItemText, selected ? styles.networkDropdownItemTextActive : null]}>
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
+        </View>
+      </View>
+
       <View style={styles.tabsRow}>
         <Pressable
           style={[styles.tabButton, activeTab === 'tokens' && styles.tabButtonActive]}
@@ -249,9 +302,9 @@ export function WalletDetailScreen({wallet, initialTab, onBack, onEdit}: WalletD
       </View>
 
       <View style={styles.content}>
-        {activeTab === 'tokens' ? <TokensScreen walletId={wallet.id} /> : null}
-        {activeTab === 'history' ? <EventsScreen walletId={wallet.id} /> : null}
-        {activeTab === 'positions' ? <PositionsScreen walletId={wallet.id} /> : null}
+        {activeTab === 'tokens' ? <TokensScreen walletId={wallet.id} selectedChainId={selectedNetwork} /> : null}
+        {activeTab === 'history' ? <EventsScreen walletId={wallet.id} selectedChainId={selectedNetwork} /> : null}
+        {activeTab === 'positions' ? <PositionsScreen walletId={wallet.id} selectedChainId={selectedNetwork} /> : null}
       </View>
     </View>
   );
@@ -429,6 +482,73 @@ const styles = StyleSheet.create({
     fontSize: 10,
     lineHeight: 12,
     color: colors.textSecondary,
+  },
+  networkFilterWrap: {
+    marginBottom: 10,
+    zIndex: 20,
+  },
+  networkFilterLabel: {
+    marginBottom: 7,
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textTertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  networkDropdownContainer: {
+    position: 'relative',
+  },
+  networkDropdownButton: {
+    minHeight: 42,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.elevated,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  networkDropdownButtonText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  networkDropdownChevron: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  networkDropdownMenu: {
+    position: 'absolute',
+    top: 48,
+    left: 0,
+    right: 0,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+    overflow: 'hidden',
+  },
+  networkDropdownItem: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  networkDropdownItemActive: {
+    backgroundColor: colors.elevated,
+  },
+  networkDropdownItemText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  networkDropdownItemTextActive: {
+    color: colors.textPrimary,
+    fontWeight: '700',
   },
   tabsRow: {
     flexDirection: 'row',

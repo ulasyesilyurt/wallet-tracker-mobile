@@ -15,6 +15,7 @@ import {formatChainDisplayName, formatWalletChainsLabel} from '../utils/chains';
 
 type PositionsScreenProps = {
   walletId: string;
+  selectedChainId?: string | null;
 };
 
 function formatValueUsd(value: number | null) {
@@ -136,7 +137,15 @@ function PositionCard({position}: {position: WalletPosition}) {
   );
 }
 
-export function PositionsScreen({walletId}: PositionsScreenProps) {
+function getFilteredPositionsByChain(positions: WalletPosition[], selectedChainId?: string | null) {
+  if (!selectedChainId) {
+    return positions;
+  }
+
+  return positions.filter((position) => position.chainId === selectedChainId);
+}
+
+export function PositionsScreen({walletId, selectedChainId = null}: PositionsScreenProps) {
   const [positions, setPositions] = useState<WalletPositions | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -186,9 +195,13 @@ export function PositionsScreen({walletId}: PositionsScreenProps) {
     );
   }
 
-  const protocolPositions = sortPositionsByValueUsdDescending(positions?.positions ?? []);
+  const protocolPositions = sortPositionsByValueUsdDescending(
+    getFilteredPositionsByChain(positions?.positions ?? [], selectedChainId),
+  );
   const totalPositionsValue = formatValueUsd(getTotalPositionsValue(protocolPositions));
-  const chainLabel = formatWalletChainsLabel(positions?.chainId ?? '', positions?.enabledChains);
+  const chainLabel = selectedChainId
+    ? formatChainDisplayName(selectedChainId)
+    : formatWalletChainsLabel(positions?.chainId ?? '', positions?.enabledChains);
 
   return (
     <FlatList

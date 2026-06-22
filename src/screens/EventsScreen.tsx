@@ -14,9 +14,10 @@ import {colors} from '../theme/colors';
 
 type EventsScreenProps = {
   walletId: string;
+  selectedChainId?: string | null;
 };
 
-export function EventsScreen({walletId}: EventsScreenProps) {
+export function EventsScreen({walletId, selectedChainId = null}: EventsScreenProps) {
   const [events, setEvents] = useState<WalletEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -66,16 +67,20 @@ export function EventsScreen({walletId}: EventsScreenProps) {
     );
   }
 
+  const filteredEvents = selectedChainId
+    ? events.filter((event) => event.chainId === selectedChainId)
+    : events;
+
   return (
     <FlatList
-      data={events}
+      data={filteredEvents}
       keyExtractor={item => item.id}
-      contentContainerStyle={events.length === 0 ? styles.emptyListContent : styles.listContent}
+      contentContainerStyle={filteredEvents.length === 0 ? styles.emptyListContent : styles.listContent}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={() => void loadEvents(true)} tintColor={colors.accent} />
       }
       ListHeaderComponent={
-        events.length > 0 ? (
+        filteredEvents.length > 0 ? (
           <View style={styles.summaryCard}>
             <Text style={styles.summaryKicker}>History</Text>
             <Text style={styles.summaryTitle}>Recent wallet activity</Text>

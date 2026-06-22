@@ -15,6 +15,7 @@ import {formatUsd} from '../utils/format';
 
 type TokensScreenProps = {
   walletId: string;
+  selectedChainId?: string | null;
 };
 
 function formatTotalBalanceUsd(value: number | null) {
@@ -58,7 +59,38 @@ function renderSuspicionReason(reason: string) {
   return reason.replace(/_/g, ' ');
 }
 
-export function TokensScreen({walletId}: TokensScreenProps) {
+function getFilteredHoldingsByChain(holdings: TokenHolding[], selectedChainId?: string | null) {
+  if (!selectedChainId) {
+    return holdings;
+  }
+
+  return holdings.filter((holding) => holding.chainId === selectedChainId);
+}
+
+function getFilteredTotalBalanceUsd(holdings: TokenHolding[]) {
+  const total = holdings.reduce((sum, holding) => {
+    if (
+      typeof holding.balanceUsd !== 'number' ||
+      !Number.isFinite(holding.balanceUsd) ||
+      holding.isSuspicious
+    ) {
+      return sum;
+    }
+
+    return sum + holding.balanceUsd;
+  }, 0);
+
+  const hasAnyPricedNonSuspiciousHolding = holdings.some(
+    (holding) =>
+      typeof holding.balanceUsd === 'number' &&
+      Number.isFinite(holding.balanceUsd) &&
+      !holding.isSuspicious,
+  );
+
+  return hasAnyPricedNonSuspiciousHolding ? total : null;
+}
+
+export function TokensScreen({walletId, selectedChainId = null}: TokensScreenProps) {
   const [holdings, setHoldings] = useState<WalletHoldings | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -88,19 +120,25 @@ export function TokensScreen({walletId}: TokensScreenProps) {
     void loadHoldings();
   }, [walletId]);
 
-  const totalBalanceText = formatTotalBalanceUsd(holdings?.totalBalanceUsd ?? null);
   const allHoldings = holdings?.holdings ?? [];
+  const filteredHoldings = useMemo(
+    () => getFilteredHoldingsByChain(allHoldings, selectedChainId),
+    [allHoldings, selectedChainId],
+  );
+  const totalBalanceText = formatTotalBalanceUsd(
+    selectedChainId ? getFilteredTotalBalanceUsd(filteredHoldings) : (holdings?.totalBalanceUsd ?? null),
+  );
   const tokenBalancesAvailable = holdings?.tokenBalancesAvailable ?? true;
   const tokenBalancesReason = holdings?.tokenBalancesReason ?? null;
   const visibleTokenHoldings = useMemo(
-    () => sortTokenHoldingsByUsdValue(allHoldings.filter((holding) => !holding.isSuspicious)),
-    [allHoldings],
+    () => sortTokenHoldingsByUsdValue(filteredHoldings.filter((holding) => !holding.isSuspicious)),
+    [filteredHoldings],
   );
   const suspiciousTokenHoldings = useMemo(
-    () => sortTokenHoldingsByUsdValue(allHoldings.filter((holding) => holding.isSuspicious)),
-    [allHoldings],
+    () => sortTokenHoldingsByUsdValue(filteredHoldings.filter((holding) => holding.isSuspicious)),
+    [filteredHoldings],
   );
-  const hasAnyHoldings = allHoldings.length > 0;
+  const hasAnyHoldings = filteredHoldings.length > 0;
   const hasVisibleHoldings = visibleTokenHoldings.length > 0;
   const summaryBodyText = totalBalanceText
     ? 'Direct wallet holdings.'
