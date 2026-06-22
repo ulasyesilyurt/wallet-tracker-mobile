@@ -14,7 +14,11 @@ import {deleteWallet, updateWallet} from '../api/wallets';
 import {colors} from '../theme/colors';
 import type {Wallet, WalletTrackType} from '../types/wallet';
 import {shortenAddress} from '../utils/format';
-import {formatWalletChainsLabel} from '../utils/chains';
+import {
+  formatWalletChainsLabel,
+  getWalletEnabledChains,
+  SUPPORTED_WALLET_CHAIN_OPTIONS,
+} from '../utils/chains';
 
 type WalletEditScreenProps = {
   wallet: Wallet;
@@ -39,10 +43,14 @@ const EVM_ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;
 export function WalletEditScreen({wallet, onBack, onSaved, onDeleted}: WalletEditScreenProps) {
   const [address, setAddress] = useState(wallet.address);
   const [label, setLabel] = useState(wallet.label ?? '');
+  const [selectedChains, setSelectedChains] = useState<string[]>(
+    getWalletEnabledChains(wallet.chainId, wallet.enabledChains),
+  );
   const [selectedTrackTypes, setSelectedTrackTypes] = useState<WalletTrackType[]>(wallet.trackTypes ?? []);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [addressError, setAddressError] = useState<string | null>(null);
+  const [chainsError, setChainsError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const normalizedTrackTypes = useMemo(() => {
@@ -56,6 +64,20 @@ export function WalletEditScreen({wallet, onBack, onSaved, onDeleted}: WalletEdi
       }
 
       return [...current, trackType];
+    });
+  }
+
+  function toggleChain(chainId: string) {
+    setSelectedChains((current) => {
+      const nextChains = current.includes(chainId)
+        ? current.filter((value) => value !== chainId)
+        : [...current, chainId];
+
+      if (chainsError && nextChains.length > 0) {
+        setChainsError(null);
+      }
+
+      return nextChains;
     });
   }
 
@@ -85,8 +107,14 @@ export function WalletEditScreen({wallet, onBack, onSaved, onDeleted}: WalletEdi
       return;
     }
 
+    if (selectedChains.length === 0) {
+      setChainsError('Select at least one chain');
+      return;
+    }
+
     setSaving(true);
     setAddressError(null);
+    setChainsError(null);
     setSubmitError(null);
 
     try {
@@ -94,6 +122,7 @@ export function WalletEditScreen({wallet, onBack, onSaved, onDeleted}: WalletEdi
         address: address.trim(),
         label: label.trim() || undefined,
         trackTypes: normalizedTrackTypes,
+        enabledChains: selectedChains,
       });
 
       onSaved(updatedWallet);
@@ -191,6 +220,31 @@ export function WalletEditScreen({wallet, onBack, onSaved, onDeleted}: WalletEdi
             placeholderTextColor={colors.textTertiary}
             style={styles.input}
           />
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.label}>Networks</Text>
+          <View style={styles.chainOptionsRow}>
+            {SUPPORTED_WALLET_CHAIN_OPTIONS.map((option) => {
+              const selected = selectedChains.includes(option.chainId);
+
+              return (
+                <Pressable
+                  key={option.chainId}
+                  onPress={() => toggleChain(option.chainId)}
+                  style={[
+                    styles.chainOptionCard,
+                    selected ? styles.chainOptionCardActive : null,
+                  ]}>
+                  <Text style={styles.chainOptionText}>{option.label}</Text>
+                  <Text style={styles.chainOptionHint}>
+                    {selected ? 'Selected' : 'Tap to add'}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          {chainsError ? <Text style={styles.errorText}>{chainsError}</Text> : null}
         </View>
 
         <View style={styles.section}>
@@ -321,6 +375,33 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 13,
     color: colors.negative,
+  },
+  chainOptionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  chainOptionCard: {
+    flex: 1,
+    backgroundColor: colors.elevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  chainOptionCardActive: {
+    backgroundColor: colors.card,
+    borderColor: colors.accent,
+  },
+  chainOptionText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  chainOptionHint: {
+    marginTop: 4,
+    fontSize: 13,
+    color: colors.textSecondary,
   },
   switchRow: {
     flexDirection: 'row',
