@@ -59,6 +59,35 @@ function getTotalPositionsValue(positions: WalletPosition[]) {
   return hasAnyValuedPosition ? total : null;
 }
 
+function getSortablePositionValueUsd(position: WalletPosition) {
+  return typeof position.valueUsd === 'number' && Number.isFinite(position.valueUsd)
+    ? position.valueUsd
+    : null;
+}
+
+function sortPositionsByValueUsdDescending(positions: WalletPosition[]) {
+  return [...positions].sort((left, right) => {
+    const leftUsd = getSortablePositionValueUsd(left);
+    const rightUsd = getSortablePositionValueUsd(right);
+
+    if (leftUsd != null && rightUsd != null) {
+      return rightUsd - leftUsd;
+    }
+
+    if (leftUsd != null) {
+      return -1;
+    }
+
+    if (rightUsd != null) {
+      return 1;
+    }
+
+    const leftLabel = `${left.protocolName}:${left.assetSymbol}:${left.assetName}`;
+    const rightLabel = `${right.protocolName}:${right.assetSymbol}:${right.assetName}`;
+    return leftLabel.localeCompare(rightLabel);
+  });
+}
+
 function PositionCard({position}: {position: WalletPosition}) {
   const valueUsdText = formatValueUsd(position.valueUsd);
   const formattedAmount = formatPositionTokenAmount(position.amount);
@@ -157,7 +186,7 @@ export function PositionsScreen({walletId}: PositionsScreenProps) {
     );
   }
 
-  const protocolPositions = positions?.positions ?? [];
+  const protocolPositions = sortPositionsByValueUsdDescending(positions?.positions ?? []);
   const totalPositionsValue = formatValueUsd(getTotalPositionsValue(protocolPositions));
   const chainLabel = formatWalletChainsLabel(positions?.chainId ?? '', positions?.enabledChains);
 
