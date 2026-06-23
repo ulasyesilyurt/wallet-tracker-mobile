@@ -26,6 +26,8 @@ type FollowingScreenProps = {
   onSelectWallet: (wallet: Wallet) => void;
 };
 
+const WALLET_SUMMARY_FETCH_CONCURRENCY = 3;
+
 export function FollowingScreen({
   refreshKey = 0,
   onAddWallet,
@@ -58,14 +60,21 @@ export function FollowingScreen({
     setWalletSummaryLoadingById(nextSummaryLoadingById);
     setWalletSecondaryLabelsById(nextWalletSecondaryLabelsById);
 
-    const walletSummaryResults = await Promise.allSettled(
-      nextWallets.map(async wallet => {
+    const walletSummaryTasks = nextWallets.map(
+      wallet => async () => {
         const summary = await getWalletPortfolioSummary(wallet.id, {
           includePositions: false,
         });
         return [wallet.id, summary] as const;
-      }),
+      },
     );
+    const walletSummaryResults: PromiseSettledResult<readonly [string, WalletPortfolioSummary]>[] = [];
+
+    for (let index = 0; index < walletSummaryTasks.length; index += WALLET_SUMMARY_FETCH_CONCURRENCY) {
+      const batchTasks = walletSummaryTasks.slice(index, index + WALLET_SUMMARY_FETCH_CONCURRENCY);
+      const batchResults = await Promise.allSettled(batchTasks.map(task => task()));
+      walletSummaryResults.push(...batchResults);
+    }
 
     const walletSummariesById: Record<string, WalletPortfolioSummary> = {};
 
