@@ -7,6 +7,11 @@ const CHAIN_DISPLAY_NAMES: Record<string, string> = {
   'polygon-mainnet': 'Polygon',
 };
 
+const CHAIN_TRANSACTION_EXPLORER_BASE_URLS: Record<string, string> = {
+  'ethereum-mainnet': 'https://etherscan.io/tx/',
+  'base-mainnet': 'https://basescan.org/tx/',
+};
+
 export const SUPPORTED_WALLET_CHAIN_OPTIONS = [
   {chainId: 'ethereum-mainnet', label: 'Ethereum'},
   {chainId: 'base-mainnet', label: 'Base'},
@@ -56,4 +61,26 @@ export function getChainBadgeTheme(chainId: string | null | undefined) {
         textColor: colors.textSecondary,
       };
   }
+}
+
+export function getTransactionExplorerUrl(
+  chainId: string | null | undefined,
+  transactionHash: string | null | undefined,
+): string | null {
+  if (
+    typeof chainId !== 'string' ||
+    chainId.length === 0 ||
+    typeof transactionHash !== 'string' ||
+    transactionHash.length === 0
+  ) {
+    return null;
+  }
+
+  const baseUrl = CHAIN_TRANSACTION_EXPLORER_BASE_URLS[chainId];
+
+  if (!baseUrl) {
+    return null;
+  }
+
+  return `${baseUrl}${transactionHash}`;
 }

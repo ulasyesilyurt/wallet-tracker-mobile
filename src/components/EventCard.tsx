@@ -1,9 +1,14 @@
 import React from 'react';
-import {StyleSheet, Text, View} from 'react-native';
+import Clipboard from '@react-native-clipboard/clipboard';
+import {Linking, Pressable, StyleSheet, Text, View} from 'react-native';
 import type {WalletEvent} from '../api/events';
 import {colors} from '../theme/colors';
 import {formatActivityAmount, shortenAddress} from '../utils/format';
-import {formatChainDisplayName, getChainBadgeTheme} from '../utils/chains';
+import {
+  formatChainDisplayName,
+  getChainBadgeTheme,
+  getTransactionExplorerUrl,
+} from '../utils/chains';
 
 type EventCardProps = {
   event: WalletEvent;
@@ -74,6 +79,35 @@ export function EventCard({event}: EventCardProps) {
     : null;
   const chainLabel = formatChainDisplayName(event.chainId).toUpperCase();
   const chainBadgeTheme = getChainBadgeTheme(event.chainId);
+  const transactionExplorerUrl = getTransactionExplorerUrl(
+    event.chainId,
+    event.transactionHash,
+  );
+
+  async function handleOpenTransaction() {
+    if (!transactionExplorerUrl) {
+      return;
+    }
+
+    try {
+      await Linking.openURL(transactionExplorerUrl);
+    } catch (error) {
+      console.log('[event-card] failed to open transaction explorer', {
+        chainId: event.chainId,
+        transactionHash: event.transactionHash,
+        transactionExplorerUrl,
+        error,
+      });
+    }
+  }
+
+  function handleCopyCounterpartyAddress() {
+    if (!counterpartyAddress) {
+      return;
+    }
+
+    Clipboard.setString(counterpartyAddress);
+  }
 
   return (
     <View style={styles.card}>
@@ -103,9 +137,20 @@ export function EventCard({event}: EventCardProps) {
               {walletLabel}
             </Text>
           ) : null}
-          <Text style={styles.metaTimestamp} numberOfLines={1}>
-            {previewHash(event.transactionHash)}
-          </Text>
+          <Pressable
+            onPress={handleOpenTransaction}
+            disabled={!transactionExplorerUrl}
+            hitSlop={6}
+            style={styles.hashPressable}>
+            <Text
+              style={[
+                styles.metaTimestamp,
+                transactionExplorerUrl ? styles.metaTimestampLink : null,
+              ]}
+              numberOfLines={1}>
+              {previewHash(event.transactionHash)}
+            </Text>
+          </Pressable>
         </View>
       </View>
 
@@ -133,9 +178,19 @@ export function EventCard({event}: EventCardProps) {
         </View>
 
         {counterpartyLabel ? (
-          <Text style={styles.walletLine} numberOfLines={1}>
-            {counterpartyLabel}
-          </Text>
+          <View style={styles.counterpartyRow}>
+            <Text style={styles.walletLine} numberOfLines={1}>
+              {counterpartyLabel}
+            </Text>
+            {counterpartyAddress ? (
+              <Pressable
+                onPress={handleCopyCounterpartyAddress}
+                hitSlop={6}
+                style={styles.copyChip}>
+                <Text style={styles.copyChipText}>Copy</Text>
+              </Pressable>
+            ) : null}
+          </View>
         ) : null}
       </View>
     </View>
@@ -253,6 +308,12 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
     textAlign: 'right',
   },
+  metaTimestampLink: {
+    color: colors.textSecondary,
+  },
+  hashPressable: {
+    marginTop: 5,
+  },
   secondaryRow: {
     marginTop: 10,
     flexDirection: 'row',
@@ -265,5 +326,28 @@ const styles = StyleSheet.create({
     gap: 8,
     minWidth: 0,
     flexShrink: 1,
+  },
+  counterpartyRow: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+  copyChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.elevated,
+  },
+  copyChipText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
 });
