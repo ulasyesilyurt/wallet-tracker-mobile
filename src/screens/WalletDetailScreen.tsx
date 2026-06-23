@@ -1,6 +1,8 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {ActivityIndicator, Pressable, StyleSheet, Text, View} from 'react-native';
 import {getWalletPerformance, type PortfolioPerformance} from '../api/performance';
+import {getWalletHoldings, type TokenHolding, type WalletHoldings} from '../api/holdings';
+import {getWalletPositions, type WalletPosition, type WalletPositions} from '../api/positions';
 import {TokensScreen} from './TokensScreen';
 import {EventsScreen} from './EventsScreen';
 import {PositionsScreen} from './PositionsScreen';
@@ -21,6 +23,68 @@ type NetworkFilterOption = {
   label: string;
 };
 
+function sumFilteredHoldingsUsd(holdings: TokenHolding[], selectedChainId: string | null) {
+  const filteredHoldings = selectedChainId
+    ? holdings.filter((holding) => holding.chainId === selectedChainId)
+    : holdings;
+
+  if (filteredHoldings.length === 0) {
+    return 0;
+  }
+
+  const pricedHoldings = filteredHoldings.filter(
+    (holding) =>
+      typeof holding.balanceUsd === 'number' &&
+      Number.isFinite(holding.balanceUsd) &&
+      !holding.isSuspicious,
+  );
+
+  if (pricedHoldings.length === 0) {
+    return null;
+  }
+
+  return pricedHoldings.reduce((sum, holding) => sum + (holding.balanceUsd ?? 0), 0);
+}
+
+function sumFilteredPositionsUsd(positions: WalletPosition[], selectedChainId: string | null) {
+  const filteredPositions = selectedChainId
+    ? positions.filter((position) => position.chainId === selectedChainId)
+    : positions;
+
+  if (filteredPositions.length === 0) {
+    return 0;
+  }
+
+  const pricedPositions = filteredPositions.filter(
+    (position) => typeof position.valueUsd === 'number' && Number.isFinite(position.valueUsd),
+  );
+
+  if (pricedPositions.length === 0) {
+    return null;
+  }
+
+  return pricedPositions.reduce((sum, position) => sum + (position.valueUsd ?? 0), 0);
+}
+
+function combineVisiblePortfolioTotals(
+  holdingsUsd: number | null,
+  positionsUsd: number | null,
+) {
+  if (holdingsUsd != null && positionsUsd != null) {
+    return holdingsUsd + positionsUsd;
+  }
+
+  if (holdingsUsd != null) {
+    return holdingsUsd;
+  }
+
+  if (positionsUsd != null) {
+    return positionsUsd;
+  }
+
+  return null;
+}
+
 type WalletDetailScreenProps = {
   wallet: Wallet;
   initialTab?: DetailTab;
@@ -35,8 +99,16 @@ export function WalletDetailScreen({wallet, initialTab, onBack, onEdit}: WalletD
   const [portfolioSummary, setPortfolioSummary] =
     useState<WalletPortfolioSummary | null>(null);
   const [walletPerformance, setWalletPerformance] = useState<PortfolioPerformance | null>(null);
+  const [walletHoldings, setWalletHoldings] = useState<WalletHoldings | null>(null);
+  const [walletPositions, setWalletPositions] = useState<WalletPositions | null>(null);
   const [portfolioLoading, setPortfolioLoading] = useState(true);
+  const [holdingsLoading, setHoldingsLoading] = useState(false);
+  const [positionsLoading, setPositionsLoading] = useState(false);
+  const [holdingsPrefetchRequested, setHoldingsPrefetchRequested] = useState(false);
+  const [positionsPrefetchRequested, setPositionsPrefetchRequested] = useState(false);
   const latestRequestIdRef = useRef(0);
+  const latestHoldingsRequestIdRef = useRef(0);
+  const latestPositionsRequestIdRef = useRef(0);
 
   useEffect(() => {
     const nextTab = initialTab ?? 'history';
@@ -62,6 +134,12 @@ export function WalletDetailScreen({wallet, initialTab, onBack, onEdit}: WalletD
 
     setPortfolioSummary(null);
     setWalletPerformance(null);
+    setWalletHoldings(null);
+    setWalletPositions(null);
+    setHoldingsLoading(false);
+    setPositionsLoading(false);
+    setHoldingsPrefetchRequested(false);
+    setPositionsPrefetchRequested(false);
 
     async function loadPortfolioSummary() {
       setPortfolioLoading(true);
@@ -113,12 +191,150 @@ export function WalletDetailScreen({wallet, initialTab, onBack, onEdit}: WalletD
     };
   }, [wallet.id]);
 
-  const holdingsValue = portfolioSummary?.holdingsTotalUsd ?? 0;
-  const positionsValue = portfolioSummary?.positionsTotalUsd ?? 0;
-  const liveTotalValue = portfolioSummary?.totalPortfolioUsd ?? null;
-  const allocationTotal = holdingsValue + positionsValue;
-  const holdingsFlex = allocationTotal > 0 ? holdingsValue / allocationTotal : 0.5;
-  const positionsFlex = allocationTotal > 0 ? positionsValue / allocationTotal : 0.5;
+  useEffect(() => {
+    if (portfolioLoading || walletHoldings || holdingsLoading || holdingsPrefetchRequested) {
+      return;
+    }
+
+    setHoldingsPrefetchRequested(true);
+  }, [holdingsLoading, holdingsPrefetchRequested, portfolioLoading, walletHoldings]);
+
+  useEffect(() => {
+    if (portfolioLoading || walletPositions || positionsLoading || positionsPrefetchRequested) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setPositionsPrefetchRequested(true);
+    }, 800);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [portfolioLoading, positionsLoading, positionsPrefetchRequested, walletPositions]);
+
+  const shouldLoadRawHoldings =
+    activeTab === 'tokens' || selectedNetwork != null || holdingsPrefetchRequested;
+  const shouldLoadRawPositions =
+    activeTab === 'positions' || selectedNetwork != null || positionsPrefetchRequested;
+
+  useEffect(() => {
+    if (!shouldLoadRawHoldings || walletHoldings || holdingsLoading) {
+      return;
+    }
+
+    let cancelled = false;
+    const requestId = latestHoldingsRequestIdRef.current + 1;
+    latestHoldingsRequestIdRef.current = requestId;
+
+    async function loadWalletHoldings() {
+      setHoldingsLoading(true);
+
+      try {
+        const nextHoldings = await getWalletHoldings(wallet.id);
+
+        if (cancelled || latestHoldingsRequestIdRef.current !== requestId) {
+          return;
+        }
+
+        setWalletHoldings(nextHoldings);
+      } catch (error) {
+        if (cancelled || latestHoldingsRequestIdRef.current !== requestId) {
+          return;
+        }
+
+        console.log('[portfolio] failed to load wallet holdings for local network filtering', {
+          walletId: wallet.id,
+          error,
+        });
+      } finally {
+        if (!cancelled && latestHoldingsRequestIdRef.current === requestId) {
+          setHoldingsLoading(false);
+        }
+      }
+    }
+
+    void loadWalletHoldings();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [holdingsLoading, shouldLoadRawHoldings, wallet.id, walletHoldings]);
+
+  useEffect(() => {
+    if (!shouldLoadRawPositions || walletPositions || positionsLoading) {
+      return;
+    }
+
+    let cancelled = false;
+    const requestId = latestPositionsRequestIdRef.current + 1;
+    latestPositionsRequestIdRef.current = requestId;
+
+    async function loadWalletPositions() {
+      setPositionsLoading(true);
+
+      try {
+        const nextPositions = await getWalletPositions(wallet.id);
+
+        if (cancelled || latestPositionsRequestIdRef.current !== requestId) {
+          return;
+        }
+
+        setWalletPositions(nextPositions);
+      } catch (error) {
+        if (cancelled || latestPositionsRequestIdRef.current !== requestId) {
+          return;
+        }
+
+        console.log('[portfolio] failed to load wallet positions for local network filtering', {
+          walletId: wallet.id,
+          error,
+        });
+      } finally {
+        if (!cancelled && latestPositionsRequestIdRef.current === requestId) {
+          setPositionsLoading(false);
+        }
+      }
+    }
+
+    void loadWalletPositions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [positionsLoading, shouldLoadRawPositions, wallet.id, walletPositions]);
+
+  const isFilteredNetworkSelected = selectedNetwork != null;
+  const filteredHoldingsValue = walletHoldings
+    ? sumFilteredHoldingsUsd(walletHoldings.holdings ?? [], selectedNetwork)
+    : null;
+  const filteredPositionsValue = walletPositions
+    ? sumFilteredPositionsUsd(walletPositions.positions ?? [], selectedNetwork)
+    : null;
+  const holdingsValue = selectedNetwork == null
+    ? (portfolioSummary?.holdingsTotalUsd ?? 0)
+    : walletHoldings
+      ? filteredHoldingsValue
+      : null;
+  const positionsValue = selectedNetwork == null
+    ? (portfolioSummary?.positionsTotalUsd ?? 0)
+    : walletPositions
+      ? filteredPositionsValue
+      : null;
+  const filteredTotalsLoading =
+    isFilteredNetworkSelected &&
+    ((walletHoldings == null && (holdingsLoading || shouldLoadRawHoldings)) ||
+      (walletPositions == null && (positionsLoading || shouldLoadRawPositions)));
+  const liveTotalValue = selectedNetwork == null
+    ? (portfolioSummary?.totalPortfolioUsd ?? null)
+    : filteredTotalsLoading
+      ? null
+      : combineVisiblePortfolioTotals(filteredHoldingsValue, filteredPositionsValue);
+  const numericHoldingsValue = holdingsValue ?? 0;
+  const numericPositionsValue = positionsValue ?? 0;
+  const allocationTotal = numericHoldingsValue + numericPositionsValue;
+  const holdingsFlex = allocationTotal > 0 ? numericHoldingsValue / allocationTotal : 0.5;
+  const positionsFlex = allocationTotal > 0 ? numericPositionsValue / allocationTotal : 0.5;
   const validatedPerformance = getValidatedPerformance(
     liveTotalValue,
     walletPerformance,
@@ -138,9 +354,17 @@ export function WalletDetailScreen({wallet, initialTab, onBack, onEdit}: WalletD
   ];
   const selectedNetworkLabel = allNetworkOptions.find((option) => option.value === selectedNetwork)?.label ?? 'All Networks';
   const holdingsStatusText =
-    portfolioSummary?.holdingsTotalUsd == null ? 'Unavailable' : null;
+    holdingsValue == null
+      ? isFilteredNetworkSelected && walletHoldings == null && (holdingsLoading || shouldLoadRawHoldings)
+        ? 'Loading'
+        : 'Unavailable'
+      : null;
   const positionsStatusText =
-    portfolioSummary?.positionsTotalUsd == null ? 'Unavailable' : null;
+    positionsValue == null
+      ? isFilteredNetworkSelected && walletPositions == null && (positionsLoading || shouldLoadRawPositions)
+        ? 'Loading'
+        : 'Unavailable'
+      : null;
 
   useEffect(() => {
     logPortfolioBalanceDecision({
@@ -197,9 +421,12 @@ export function WalletDetailScreen({wallet, initialTab, onBack, onEdit}: WalletD
           ) : (
             <>
               <Text style={styles.summaryTotalValue}>
-                {formatUsd(liveTotalValue, 'Balance unavailable')}
+                {formatUsd(
+                  liveTotalValue,
+                  filteredTotalsLoading ? 'Loading...' : 'Balance unavailable',
+                )}
               </Text>
-              {hasPerformanceHistory ? (
+              {selectedNetwork == null && hasPerformanceHistory ? (
                 <Text
                   style={[
                     styles.performanceText,
@@ -212,6 +439,10 @@ export function WalletDetailScreen({wallet, initialTab, onBack, onEdit}: WalletD
                   {validatedPerformance.changePercent >= 0 ? '+' : ''}
                   {validatedPerformance.changePercent.toFixed(2)}%
                 </Text>
+              ) : filteredTotalsLoading ? (
+                <Text style={styles.performanceCollecting}>Loading {selectedNetworkLabel} totals...</Text>
+              ) : selectedNetwork != null ? (
+                <Text style={styles.performanceCollecting}>Filtered by {selectedNetworkLabel}</Text>
               ) : (
                 <Text style={styles.performanceCollecting}>{performanceUnavailableText}</Text>
               )}
@@ -225,7 +456,10 @@ export function WalletDetailScreen({wallet, initialTab, onBack, onEdit}: WalletD
                   <View>
                     <Text style={styles.allocationLabel}>Holdings</Text>
                     <Text style={styles.allocationValue}>
-                      {formatUsd(portfolioSummary?.holdingsTotalUsd, 'Unavailable')}
+                      {formatUsd(
+                        holdingsValue,
+                        holdingsStatusText === 'Loading' ? 'Loading...' : 'Unavailable',
+                      )}
                     </Text>
                     {holdingsStatusText ? (
                       <Text style={styles.allocationHint}>{holdingsStatusText}</Text>
@@ -237,7 +471,10 @@ export function WalletDetailScreen({wallet, initialTab, onBack, onEdit}: WalletD
                   <View>
                     <Text style={styles.allocationLabel}>Positions</Text>
                     <Text style={styles.allocationValue}>
-                      {formatUsd(portfolioSummary?.positionsTotalUsd, 'Unavailable')}
+                      {formatUsd(
+                        positionsValue,
+                        positionsStatusText === 'Loading' ? 'Loading...' : 'Unavailable',
+                      )}
                     </Text>
                     {positionsStatusText ? (
                       <Text style={styles.allocationHint}>{positionsStatusText}</Text>
@@ -302,9 +539,23 @@ export function WalletDetailScreen({wallet, initialTab, onBack, onEdit}: WalletD
       </View>
 
       <View style={styles.content}>
-        {activeTab === 'tokens' ? <TokensScreen walletId={wallet.id} selectedChainId={selectedNetwork} /> : null}
+        {activeTab === 'tokens' ? (
+          <TokensScreen
+            walletId={wallet.id}
+            selectedChainId={selectedNetwork}
+            prefetchedHoldings={walletHoldings}
+            prefetchedHoldingsLoading={holdingsLoading || (shouldLoadRawHoldings && walletHoldings == null)}
+          />
+        ) : null}
         {activeTab === 'history' ? <EventsScreen walletId={wallet.id} selectedChainId={selectedNetwork} /> : null}
-        {activeTab === 'positions' ? <PositionsScreen walletId={wallet.id} selectedChainId={selectedNetwork} /> : null}
+        {activeTab === 'positions' ? (
+          <PositionsScreen
+            walletId={wallet.id}
+            selectedChainId={selectedNetwork}
+            prefetchedPositions={walletPositions}
+            prefetchedPositionsLoading={positionsLoading || (shouldLoadRawPositions && walletPositions == null)}
+          />
+        ) : null}
       </View>
     </View>
   );
