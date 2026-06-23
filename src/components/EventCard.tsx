@@ -175,7 +175,7 @@ export function EventCard({event}: EventCardProps) {
               <Ionicons
                 name="open-outline"
                 size={11}
-                color={colors.textSecondary}
+                color={colors.accent}
                 style={styles.hashLinkIcon}
               />
             ) : null}
@@ -334,6 +334,7 @@ const styles = StyleSheet.create({
   metaTimestamp: {
     marginTop: 5,
     fontSize: 11,
+    lineHeight: 14,
     color: colors.textTertiary,
     textAlign: 'right',
   },
@@ -347,7 +348,8 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   hashLinkIcon: {
-    marginLeft: 5,
+    marginLeft: 4,
+    marginTop: 1,
     opacity: 0.82,
   },
   secondaryRow: {
