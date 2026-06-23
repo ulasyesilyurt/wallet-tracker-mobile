@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import Clipboard from '@react-native-clipboard/clipboard';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {Linking, Pressable, StyleSheet, Text, View} from 'react-native';
@@ -45,6 +45,8 @@ function previewHash(value: string) {
 }
 
 export function EventCard({event}: EventCardProps) {
+  const [copied, setCopied] = useState(false);
+  const copyResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const amountLabel = formatActivityAmount(
     event.amount,
     event.assetSymbol,
@@ -108,7 +110,25 @@ export function EventCard({event}: EventCardProps) {
     }
 
     Clipboard.setString(counterpartyAddress);
+    setCopied(true);
+
+    if (copyResetTimeoutRef.current) {
+      clearTimeout(copyResetTimeoutRef.current);
+    }
+
+    copyResetTimeoutRef.current = setTimeout(() => {
+      setCopied(false);
+      copyResetTimeoutRef.current = null;
+    }, 1500);
   }
+
+  useEffect(() => {
+    return () => {
+      if (copyResetTimeoutRef.current) {
+        clearTimeout(copyResetTimeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
     <View style={styles.card}>
@@ -196,7 +216,7 @@ export function EventCard({event}: EventCardProps) {
                 onPress={handleCopyCounterpartyAddress}
                 hitSlop={6}
                 style={styles.copyChip}>
-                <Text style={styles.copyChipText}>Copy</Text>
+                <Text style={styles.copyChipText}>{copied ? 'Copied' : 'Copy'}</Text>
               </Pressable>
             ) : null}
           </View>
@@ -352,12 +372,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   copyChip: {
+    minWidth: 52,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.elevated,
+    alignItems: 'center',
   },
   copyChipText: {
     fontSize: 10,
