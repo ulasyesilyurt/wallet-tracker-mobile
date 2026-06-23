@@ -192,26 +192,26 @@ export function WalletDetailScreen({wallet, initialTab, onBack, onEdit}: WalletD
   }, [wallet.id]);
 
   useEffect(() => {
-    if (portfolioLoading || walletHoldings || holdingsLoading || holdingsPrefetchRequested) {
+    if (!portfolioSummary || walletHoldings || holdingsLoading || holdingsPrefetchRequested) {
       return;
     }
 
     setHoldingsPrefetchRequested(true);
-  }, [holdingsLoading, holdingsPrefetchRequested, portfolioLoading, walletHoldings]);
+  }, [holdingsLoading, holdingsPrefetchRequested, portfolioSummary, walletHoldings]);
 
   useEffect(() => {
-    if (portfolioLoading || walletPositions || positionsLoading || positionsPrefetchRequested) {
+    if (!portfolioSummary || walletPositions || positionsLoading || positionsPrefetchRequested) {
       return;
     }
 
     const timer = setTimeout(() => {
       setPositionsPrefetchRequested(true);
-    }, 800);
+    }, 300);
 
     return () => {
       clearTimeout(timer);
     };
-  }, [portfolioLoading, positionsLoading, positionsPrefetchRequested, walletPositions]);
+  }, [portfolioSummary, positionsLoading, positionsPrefetchRequested, walletPositions]);
 
   const shouldLoadRawHoldings =
     activeTab === 'tokens' || selectedNetwork != null || holdingsPrefetchRequested;
@@ -233,11 +233,15 @@ export function WalletDetailScreen({wallet, initialTab, onBack, onEdit}: WalletD
       try {
         const nextHoldings = await getWalletHoldings(wallet.id);
 
-        if (cancelled || latestHoldingsRequestIdRef.current !== requestId) {
+        if (cancelled) {
           return;
         }
 
-        setWalletHoldings(nextHoldings);
+        setWalletHoldings((currentHoldings) => currentHoldings ?? nextHoldings);
+
+        if (latestHoldingsRequestIdRef.current !== requestId) {
+          return;
+        }
       } catch (error) {
         if (cancelled || latestHoldingsRequestIdRef.current !== requestId) {
           return;
@@ -259,7 +263,7 @@ export function WalletDetailScreen({wallet, initialTab, onBack, onEdit}: WalletD
     return () => {
       cancelled = true;
     };
-  }, [holdingsLoading, shouldLoadRawHoldings, wallet.id, walletHoldings]);
+  }, [shouldLoadRawHoldings, wallet.id, walletHoldings]);
 
   useEffect(() => {
     if (!shouldLoadRawPositions || walletPositions || positionsLoading) {
@@ -276,11 +280,15 @@ export function WalletDetailScreen({wallet, initialTab, onBack, onEdit}: WalletD
       try {
         const nextPositions = await getWalletPositions(wallet.id);
 
-        if (cancelled || latestPositionsRequestIdRef.current !== requestId) {
+        if (cancelled) {
           return;
         }
 
-        setWalletPositions(nextPositions);
+        setWalletPositions((currentPositions) => currentPositions ?? nextPositions);
+
+        if (latestPositionsRequestIdRef.current !== requestId) {
+          return;
+        }
       } catch (error) {
         if (cancelled || latestPositionsRequestIdRef.current !== requestId) {
           return;
@@ -302,7 +310,7 @@ export function WalletDetailScreen({wallet, initialTab, onBack, onEdit}: WalletD
     return () => {
       cancelled = true;
     };
-  }, [positionsLoading, shouldLoadRawPositions, wallet.id, walletPositions]);
+  }, [shouldLoadRawPositions, wallet.id, walletPositions]);
 
   const isFilteredNetworkSelected = selectedNetwork != null;
   const filteredHoldingsValue = walletHoldings

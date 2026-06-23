@@ -211,7 +211,10 @@ export function PositionsScreen({
     void loadPositions();
   }, [prefetchedPositions, prefetchedPositionsLoading, walletId]);
 
-  if (loading) {
+  const effectivePositions = prefetchedPositions ?? positions;
+  const spinnerVisible = loading && !effectivePositions;
+
+  if (spinnerVisible) {
     return (
       <View style={styles.centerState}>
         <ActivityIndicator size="large" color={colors.accent} />
@@ -232,15 +235,15 @@ export function PositionsScreen({
     );
   }
 
-  const allPositions = positions?.positions ?? [];
+  const allPositions = effectivePositions?.positions ?? [];
   const filteredPositions = getFilteredPositionsByChain(allPositions, selectedChainId);
   const protocolPositions = sortPositionsByValueUsdDescending(filteredPositions);
   const totalPositionsValue = formatValueUsd(getTotalPositionsValue(protocolPositions));
   const chainLabel = selectedChainId
     ? formatChainDisplayName(selectedChainId)
-    : formatWalletChainsLabel(positions?.chainId ?? '', positions?.enabledChains);
-  const hasRelevantPartial = positions?.isPartial === true && hasRelevantPartialReason(
-    positions?.partialReasons,
+    : formatWalletChainsLabel(effectivePositions?.chainId ?? '', effectivePositions?.enabledChains);
+  const hasRelevantPartial = effectivePositions?.isPartial === true && hasRelevantPartialReason(
+    effectivePositions?.partialReasons,
     selectedChainId,
   );
   const isDegradedProviderEmptyState =

@@ -16,6 +16,8 @@ import {formatUsd} from '../utils/format';
 type TokensScreenProps = {
   walletId: string;
   selectedChainId?: string | null;
+  prefetchedHoldings?: WalletHoldings | null;
+  prefetchedHoldingsLoading?: boolean;
 };
 
 function formatTotalBalanceUsd(value: number | null) {
@@ -90,9 +92,14 @@ function getFilteredTotalBalanceUsd(holdings: TokenHolding[]) {
   return hasAnyPricedNonSuspiciousHolding ? total : null;
 }
 
-export function TokensScreen({walletId, selectedChainId = null}: TokensScreenProps) {
-  const [holdings, setHoldings] = useState<WalletHoldings | null>(null);
-  const [loading, setLoading] = useState(true);
+export function TokensScreen({
+  walletId,
+  selectedChainId = null,
+  prefetchedHoldings = null,
+  prefetchedHoldingsLoading = false,
+}: TokensScreenProps) {
+  const [holdings, setHoldings] = useState<WalletHoldings | null>(prefetchedHoldings);
+  const [loading, setLoading] = useState(prefetchedHoldings ? false : prefetchedHoldingsLoading || true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSuspiciousTokens, setShowSuspiciousTokens] = useState(false);
@@ -117,19 +124,37 @@ export function TokensScreen({walletId, selectedChainId = null}: TokensScreenPro
   }
 
   useEffect(() => {
-    void loadHoldings();
-  }, [walletId]);
+    setHoldings(prefetchedHoldings);
+    setError(null);
+    setLoading(prefetchedHoldings ? false : prefetchedHoldingsLoading);
+    setRefreshing(false);
+  }, [prefetchedHoldings, prefetchedHoldingsLoading, walletId]);
 
-  const allHoldings = holdings?.holdings ?? [];
+  useEffect(() => {
+    if (prefetchedHoldings) {
+      return;
+    }
+
+    if (prefetchedHoldingsLoading) {
+      return;
+    }
+
+    void loadHoldings();
+  }, [prefetchedHoldings, prefetchedHoldingsLoading, walletId]);
+
+  const effectiveHoldings = prefetchedHoldings ?? holdings;
+  const spinnerVisible = loading && !effectiveHoldings;
+
+  const allHoldings = effectiveHoldings?.holdings ?? [];
   const filteredHoldings = useMemo(
     () => getFilteredHoldingsByChain(allHoldings, selectedChainId),
     [allHoldings, selectedChainId],
   );
   const totalBalanceText = formatTotalBalanceUsd(
-    selectedChainId ? getFilteredTotalBalanceUsd(filteredHoldings) : (holdings?.totalBalanceUsd ?? null),
+    selectedChainId ? getFilteredTotalBalanceUsd(filteredHoldings) : (effectiveHoldings?.totalBalanceUsd ?? null),
   );
-  const tokenBalancesAvailable = holdings?.tokenBalancesAvailable ?? true;
-  const tokenBalancesReason = holdings?.tokenBalancesReason ?? null;
+  const tokenBalancesAvailable = effectiveHoldings?.tokenBalancesAvailable ?? true;
+  const tokenBalancesReason = effectiveHoldings?.tokenBalancesReason ?? null;
   const visibleTokenHoldings = useMemo(
     () => sortTokenHoldingsByUsdValue(filteredHoldings.filter((holding) => !holding.isSuspicious)),
     [filteredHoldings],
@@ -160,7 +185,7 @@ export function TokensScreen({walletId, selectedChainId = null}: TokensScreenPro
       ? 'Token balances loaded, but pricing is unavailable right now.'
       : null;
 
-  if (loading) {
+  if (spinnerVisible) {
     return (
       <View style={styles.centerState}>
         <ActivityIndicator size="large" color={colors.accent} />
