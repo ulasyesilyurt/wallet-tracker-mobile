@@ -11,7 +11,11 @@ import {
 import {getWalletPositions, type WalletPosition, type WalletPositions} from '../api/positions';
 import {colors} from '../theme/colors';
 import {formatPositionTokenAmount} from '../utils/format';
-import {formatChainDisplayName, formatWalletChainsLabel} from '../utils/chains';
+import {
+  formatChainDisplayName,
+  formatWalletChainsLabel,
+  getChainBadgeTheme,
+} from '../utils/chains';
 
 type PositionsScreenProps = {
   walletId: string;
@@ -96,6 +100,7 @@ function PositionCard({position}: {position: WalletPosition}) {
   const formattedAmount = formatPositionTokenAmount(position.amount);
   const positionTypeLabel = formatPositionTypeLabel(position.positionType);
   const positionChainLabel = formatChainDisplayName(position.chainId ?? '');
+  const positionChainTheme = getChainBadgeTheme(position.chainId);
 
   return (
     <View style={styles.positionCard}>
@@ -128,8 +133,17 @@ function PositionCard({position}: {position: WalletPosition}) {
             <Text style={styles.positionMeta}>{positionTypeLabel}</Text>
           </View>
           {positionChainLabel ? (
-            <View style={styles.metaPill}>
-              <Text style={styles.positionMeta}>{positionChainLabel}</Text>
+            <View
+              style={[
+                styles.metaPill,
+                {
+                  backgroundColor: positionChainTheme.backgroundColor,
+                  borderColor: positionChainTheme.borderColor,
+                },
+              ]}>
+              <Text style={[styles.positionMeta, {color: positionChainTheme.textColor}]}>
+                {positionChainLabel}
+              </Text>
             </View>
           ) : null}
         </View>
@@ -242,6 +256,7 @@ export function PositionsScreen({
   const chainLabel = selectedChainId
     ? formatChainDisplayName(selectedChainId)
     : formatWalletChainsLabel(effectivePositions?.chainId ?? '', effectivePositions?.enabledChains);
+  const chainTheme = getChainBadgeTheme(selectedChainId ?? effectivePositions?.chainId);
   const hasRelevantPartial = effectivePositions?.isPartial === true && hasRelevantPartialReason(
     effectivePositions?.partialReasons,
     selectedChainId,
@@ -275,8 +290,17 @@ export function PositionsScreen({
           <View style={styles.summaryTopRow}>
             <Text style={styles.summaryKicker}>Positions</Text>
             {chainLabel ? (
-              <View style={styles.summaryPill}>
-                <Text style={styles.summaryPillText}>{chainLabel}</Text>
+              <View
+                style={[
+                  styles.summaryPill,
+                  {
+                    backgroundColor: chainTheme.backgroundColor,
+                    borderColor: chainTheme.borderColor,
+                  },
+                ]}>
+                <Text style={[styles.summaryPillText, {color: chainTheme.textColor}]}>
+                  {chainLabel}
+                </Text>
               </View>
             ) : null}
           </View>

@@ -3,7 +3,7 @@ import {StyleSheet, Text, View} from 'react-native';
 import type {WalletEvent} from '../api/events';
 import {colors} from '../theme/colors';
 import {formatActivityAmount, shortenAddress} from '../utils/format';
-import {formatChainDisplayName} from '../utils/chains';
+import {formatChainDisplayName, getChainBadgeTheme} from '../utils/chains';
 
 type EventCardProps = {
   event: WalletEvent;
@@ -73,6 +73,7 @@ export function EventCard({event}: EventCardProps) {
     ? event.walletLabel || shortenAddress(event.walletAddress ?? '')
     : null;
   const chainLabel = formatChainDisplayName(event.chainId).toUpperCase();
+  const chainBadgeTheme = getChainBadgeTheme(event.chainId);
 
   return (
     <View style={styles.card}>
@@ -111,8 +112,17 @@ export function EventCard({event}: EventCardProps) {
       <View style={styles.secondaryRow}>
         <View style={styles.secondaryLeft}>
           {chainLabel ? (
-            <View style={styles.chainPill}>
-              <Text style={styles.chainPillText} numberOfLines={1}>
+            <View
+              style={[
+                styles.chainPill,
+                {
+                  backgroundColor: chainBadgeTheme.backgroundColor,
+                  borderColor: chainBadgeTheme.borderColor,
+                },
+              ]}>
+              <Text
+                style={[styles.chainPillText, {color: chainBadgeTheme.textColor}]}
+                numberOfLines={1}>
                 {chainLabel}
               </Text>
             </View>

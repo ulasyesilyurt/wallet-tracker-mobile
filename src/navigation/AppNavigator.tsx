@@ -1,6 +1,7 @@
 import React, {useEffect, useRef, useState} from 'react';
 import messaging, {type FirebaseMessagingTypes} from '@react-native-firebase/messaging';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import {getWalletById} from '../api/wallets';
 import {useAuth} from '../auth/AuthContext';
 import {FollowingScreen} from '../screens/FollowingScreen';
@@ -230,25 +231,48 @@ export function AppNavigator() {
     <View style={styles.screen}>
       <View style={styles.content}>{tabContent}</View>
       <View style={styles.tabBar}>
-        <TabButton label="Wallets" active={activeTab === 'wallets'} onPress={() => setActiveTab('wallets')} />
-        <TabButton label="Activity" active={activeTab === 'activity'} onPress={() => setActiveTab('activity')} />
-        <TabButton label="Settings" active={activeTab === 'settings'} onPress={() => setActiveTab('settings')} />
+        <TabButton
+          iconName="wallet-outline"
+          label="Wallets"
+          active={activeTab === 'wallets'}
+          onPress={() => setActiveTab('wallets')}
+        />
+        <TabButton
+          iconName="pulse-outline"
+          label="Activity"
+          active={activeTab === 'activity'}
+          onPress={() => setActiveTab('activity')}
+        />
+        <TabButton
+          iconName="settings-outline"
+          label="Settings"
+          active={activeTab === 'settings'}
+          onPress={() => setActiveTab('settings')}
+        />
       </View>
     </View>
   );
 }
 
 function TabButton({
+  iconName,
   label,
   active,
   onPress,
 }: {
+  iconName: string;
   label: string;
   active: boolean;
   onPress: () => void;
 }) {
   return (
     <Pressable style={[styles.tabButton, active ? styles.tabButtonActive : null]} onPress={onPress}>
+      <Ionicons
+        name={iconName}
+        size={16}
+        color={active ? colors.textPrimary : colors.textSecondary}
+        style={styles.tabButtonIcon}
+      />
       <Text style={[styles.tabButtonText, active ? styles.tabButtonTextActive : null]}>{label}</Text>
     </Pressable>
   );
@@ -267,28 +291,34 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    paddingHorizontal: 12,
-    paddingTop: 10,
-    paddingBottom: 16,
+    paddingHorizontal: 14,
+    paddingTop: 8,
+    paddingBottom: 14,
     gap: 8,
   },
   tabButton: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 14,
-    paddingVertical: 12,
-    backgroundColor: colors.elevated,
+    borderRadius: 13,
+    paddingVertical: 8,
+    backgroundColor: 'transparent',
   },
   tabButtonActive: {
-    backgroundColor: colors.primaryCtaFill,
+    backgroundColor: colors.elevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  tabButtonIcon: {
+    marginBottom: 3,
   },
   tabButtonText: {
     color: colors.textSecondary,
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 12,
+    fontWeight: '600',
   },
   tabButtonTextActive: {
-    color: colors.primaryCtaText,
+    color: colors.textPrimary,
+    fontWeight: '700',
   },
 });
