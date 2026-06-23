@@ -1,5 +1,6 @@
 import React from 'react';
 import Clipboard from '@react-native-clipboard/clipboard';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import {Linking, Pressable, StyleSheet, Text, View} from 'react-native';
 import type {WalletEvent} from '../api/events';
 import {colors} from '../theme/colors';
@@ -150,6 +151,14 @@ export function EventCard({event}: EventCardProps) {
               numberOfLines={1}>
               {previewHash(event.transactionHash)}
             </Text>
+            {transactionExplorerUrl ? (
+              <Ionicons
+                name="open-outline"
+                size={11}
+                color={colors.textSecondary}
+                style={styles.hashLinkIcon}
+              />
+            ) : null}
           </Pressable>
         </View>
       </View>
@@ -309,10 +318,17 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   metaTimestampLink: {
-    color: colors.textSecondary,
+    color: colors.accent,
   },
   hashPressable: {
     marginTop: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  hashLinkIcon: {
+    marginLeft: 5,
+    opacity: 0.82,
   },
   secondaryRow: {
     marginTop: 10,
