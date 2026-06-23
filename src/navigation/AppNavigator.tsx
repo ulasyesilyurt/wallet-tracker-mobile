@@ -238,7 +238,7 @@ export function AppNavigator() {
           onPress={() => setActiveTab('wallets')}
         />
         <TabButton
-          iconName="pulse-outline"
+          iconName="analytics-outline"
           label="Activity"
           active={activeTab === 'activity'}
           onPress={() => setActiveTab('activity')}
