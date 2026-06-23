@@ -76,35 +76,24 @@ export function EventCard({event}: EventCardProps) {
 
   return (
     <View style={styles.card}>
-      <View style={styles.row}>
-        <View style={styles.directionGlyphWrap}>
-          <Text style={styles.directionGlyph}>{directionGlyph}</Text>
-        </View>
-
-        <View style={styles.eventIdentity}>
-          <Text style={styles.amountLine} numberOfLines={1}>
-            {amountLabel}
-          </Text>
-          <View style={styles.metaRow}>
-            <Text style={styles.directionLine}>{directionLabel}</Text>
-            <Text style={styles.dot}>•</Text>
-            <Text style={styles.eventType} numberOfLines={1}>
-              {formatEventType(event.eventType)}
-            </Text>
-            {chainLabel ? (
-              <View style={styles.chainPill}>
-                <Text style={styles.chainPillText} numberOfLines={1}>
-                  {chainLabel}
-                </Text>
-              </View>
-            ) : null}
+      <View style={styles.topRow}>
+        <View style={styles.leftCluster}>
+          <View style={styles.directionGlyphWrap}>
+            <Text style={styles.directionGlyph}>{directionGlyph}</Text>
           </View>
-          <Text style={styles.timestamp}>{formatOccurredAt(event.occurredAt)}</Text>
-          {counterpartyLabel ? (
-            <Text style={styles.walletLine} numberOfLines={1}>
-              {counterpartyLabel}
+
+          <View style={styles.eventIdentity}>
+            <Text style={styles.amountLine} numberOfLines={1}>
+              {amountLabel}
             </Text>
-          ) : null}
+            <View style={styles.metaRow}>
+              <Text style={styles.directionLine}>{directionLabel}</Text>
+              <Text style={styles.dot}>•</Text>
+              <Text style={styles.eventType} numberOfLines={1}>
+                {formatEventType(event.eventType)}
+              </Text>
+            </View>
+          </View>
         </View>
 
         <View style={styles.metaBlock}>
@@ -113,8 +102,31 @@ export function EventCard({event}: EventCardProps) {
               {walletLabel}
             </Text>
           ) : null}
-          <Text style={styles.metaTimestamp}>{previewHash(event.transactionHash)}</Text>
+          <Text style={styles.metaTimestamp} numberOfLines={1}>
+            {previewHash(event.transactionHash)}
+          </Text>
         </View>
+      </View>
+
+      <View style={styles.secondaryRow}>
+        <View style={styles.secondaryLeft}>
+          {chainLabel ? (
+            <View style={styles.chainPill}>
+              <Text style={styles.chainPillText} numberOfLines={1}>
+                {chainLabel}
+              </Text>
+            </View>
+          ) : null}
+          <Text style={styles.timestamp} numberOfLines={1}>
+            {formatOccurredAt(event.occurredAt)}
+          </Text>
+        </View>
+
+        {counterpartyLabel ? (
+          <Text style={styles.walletLine} numberOfLines={1}>
+            {counterpartyLabel}
+          </Text>
+        ) : null}
       </View>
     </View>
   );
@@ -130,7 +142,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  row: {
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  leftCluster: {
+    flex: 1,
+    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 10,
@@ -162,6 +181,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    minWidth: 0,
+    flexWrap: 'nowrap',
   },
   directionLine: {
     fontSize: 12,
@@ -175,6 +196,7 @@ const styles = StyleSheet.create({
   eventType: {
     fontSize: 12,
     color: colors.textSecondary,
+    flexShrink: 1,
   },
   chainPill: {
     paddingHorizontal: 8,
@@ -183,7 +205,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.elevated,
     borderWidth: 1,
     borderColor: colors.border,
-    alignSelf: 'flex-start',
   },
   chainPillText: {
     fontSize: 10,
@@ -192,19 +213,23 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
   },
   timestamp: {
-    marginTop: 4,
     fontSize: 12,
     color: colors.textTertiary,
+    flexShrink: 1,
   },
   walletLine: {
-    marginTop: 3,
     fontSize: 12,
     color: colors.textSecondary,
+    textAlign: 'right',
+    flex: 1,
+    minWidth: 0,
   },
   metaBlock: {
     alignItems: 'flex-end',
-    minWidth: 84,
-    maxWidth: 94,
+    minWidth: 88,
+    maxWidth: 110,
+    marginLeft: 8,
+    flexShrink: 1,
   },
   metaValue: {
     fontSize: 12,
@@ -216,5 +241,19 @@ const styles = StyleSheet.create({
     marginTop: 5,
     fontSize: 11,
     color: colors.textTertiary,
+    textAlign: 'right',
+  },
+  secondaryRow: {
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  secondaryLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minWidth: 0,
+    flexShrink: 1,
   },
 });
