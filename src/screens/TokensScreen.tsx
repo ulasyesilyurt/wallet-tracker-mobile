@@ -256,7 +256,9 @@ export function TokensScreen({
             <Pressable style={styles.suspiciousHeader} onPress={() => setShowSuspiciousTokens((current) => !current)}>
               <View style={styles.suspiciousHeaderTextBlock}>
                 <Text style={styles.suspiciousTitle}>Suspicious tokens</Text>
-                <Text style={styles.suspiciousSubtitle}>{suspiciousTokenHoldings.length} token{suspiciousTokenHoldings.length === 1 ? '' : 's'} flagged by basic heuristics</Text>
+                <Text style={styles.suspiciousSubtitle}>
+                  {suspiciousTokenHoldings.length} token{suspiciousTokenHoldings.length === 1 ? '' : 's'} flagged by basic heuristics. Suspicious tokens are excluded from total balance.
+                </Text>
               </View>
               <Text style={styles.suspiciousToggle}>{showSuspiciousTokens ? 'Hide' : 'Show'}</Text>
             </Pressable>
