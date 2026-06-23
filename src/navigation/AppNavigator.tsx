@@ -292,8 +292,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
     paddingHorizontal: 14,
-    paddingTop: 8,
-    paddingBottom: 14,
+    paddingTop: 7,
+    paddingBottom: 12,
     gap: 8,
   },
   tabButton: {
@@ -301,7 +301,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 13,
-    paddingVertical: 8,
+    paddingVertical: 7,
     backgroundColor: 'transparent',
   },
   tabButtonActive: {
@@ -310,7 +310,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   tabButtonIcon: {
-    marginBottom: 3,
+    marginBottom: 2,
   },
   tabButtonText: {
     color: colors.textSecondary,
