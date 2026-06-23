@@ -16,6 +16,8 @@ import {formatChainDisplayName, formatWalletChainsLabel} from '../utils/chains';
 type PositionsScreenProps = {
   walletId: string;
   selectedChainId?: string | null;
+  prefetchedPositions?: WalletPositions | null;
+  prefetchedPositionsLoading?: boolean;
 };
 
 function formatValueUsd(value: number | null) {
@@ -145,9 +147,29 @@ function getFilteredPositionsByChain(positions: WalletPosition[], selectedChainI
   return positions.filter((position) => position.chainId === selectedChainId);
 }
 
-export function PositionsScreen({walletId, selectedChainId = null}: PositionsScreenProps) {
-  const [positions, setPositions] = useState<WalletPositions | null>(null);
-  const [loading, setLoading] = useState(true);
+function hasRelevantPartialReason(
+  partialReasons: string[] | undefined,
+  selectedChainId?: string | null,
+) {
+  if (!Array.isArray(partialReasons) || partialReasons.length === 0) {
+    return false;
+  }
+
+  if (!selectedChainId) {
+    return true;
+  }
+
+  return partialReasons.some((reason) => reason.endsWith(`:${selectedChainId}`));
+}
+
+export function PositionsScreen({
+  walletId,
+  selectedChainId = null,
+  prefetchedPositions = null,
+  prefetchedPositionsLoading = false,
+}: PositionsScreenProps) {
+  const [positions, setPositions] = useState<WalletPositions | null>(prefetchedPositions);
+  const [loading, setLoading] = useState(prefetchedPositions ? false : prefetchedPositionsLoading || true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -171,8 +193,23 @@ export function PositionsScreen({walletId, selectedChainId = null}: PositionsScr
   }
 
   useEffect(() => {
+    setPositions(prefetchedPositions);
+    setError(null);
+    setLoading(prefetchedPositions ? false : prefetchedPositionsLoading);
+    setRefreshing(false);
+  }, [prefetchedPositions, prefetchedPositionsLoading, walletId]);
+
+  useEffect(() => {
+    if (prefetchedPositions) {
+      return;
+    }
+
+    if (prefetchedPositionsLoading) {
+      return;
+    }
+
     void loadPositions();
-  }, [walletId]);
+  }, [prefetchedPositions, prefetchedPositionsLoading, walletId]);
 
   if (loading) {
     return (
@@ -195,13 +232,32 @@ export function PositionsScreen({walletId, selectedChainId = null}: PositionsScr
     );
   }
 
-  const protocolPositions = sortPositionsByValueUsdDescending(
-    getFilteredPositionsByChain(positions?.positions ?? [], selectedChainId),
-  );
+  const allPositions = positions?.positions ?? [];
+  const filteredPositions = getFilteredPositionsByChain(allPositions, selectedChainId);
+  const protocolPositions = sortPositionsByValueUsdDescending(filteredPositions);
   const totalPositionsValue = formatValueUsd(getTotalPositionsValue(protocolPositions));
   const chainLabel = selectedChainId
     ? formatChainDisplayName(selectedChainId)
     : formatWalletChainsLabel(positions?.chainId ?? '', positions?.enabledChains);
+  const hasRelevantPartial = positions?.isPartial === true && hasRelevantPartialReason(
+    positions?.partialReasons,
+    selectedChainId,
+  );
+  const isDegradedProviderEmptyState =
+    hasRelevantPartial && filteredPositions.length === 0;
+  const summaryTitle = totalPositionsValue ??
+    (isDegradedProviderEmptyState ? 'Positions temporarily unavailable' : 'No priced positions');
+  const summaryBody = isDegradedProviderEmptyState
+    ? 'Protocol positions could not be refreshed right now because the provider is rate-limited. Try again later.'
+    : protocolPositions.length > 0
+      ? 'Staked and protocol assets live here. Combine Tokens and Positions for a fuller portfolio view.'
+      : 'Protocol deposits, staking, and vault assets will appear here when available.';
+  const emptyTitle = isDegradedProviderEmptyState
+    ? 'Positions temporarily unavailable'
+    : 'No protocol positions yet';
+  const emptyBody = isDegradedProviderEmptyState
+    ? 'Protocol positions could not be refreshed right now because the provider is rate-limited. Try again later.'
+    : 'This wallet has no indexed staking or DeFi positions right now, or the provider has not returned any yet.';
 
   return (
     <FlatList
@@ -221,25 +277,16 @@ export function PositionsScreen({walletId, selectedChainId = null}: PositionsScr
               </View>
             ) : null}
           </View>
-          <Text style={styles.summaryTitle}>
-            {totalPositionsValue ?? 'No priced positions'}
-          </Text>
-          <Text style={styles.summaryBody}>
-            {protocolPositions.length > 0
-              ? 'Staked and protocol assets live here. Combine Tokens and Positions for a fuller portfolio view.'
-              : 'Protocol deposits, staking, and vault assets will appear here when available.'}
-          </Text>
+          <Text style={styles.summaryTitle}>{summaryTitle}</Text>
+          <Text style={styles.summaryBody}>{summaryBody}</Text>
         </View>
       }
       renderItem={({item}) => <PositionCard position={item} />}
       ItemSeparatorComponent={() => <View style={styles.separator} />}
       ListEmptyComponent={
         <View style={styles.centerState}>
-          <Text style={styles.emptyTitle}>No protocol positions yet</Text>
-          <Text style={styles.stateText}>
-            This wallet has no indexed staking or DeFi positions right now, or the
-            provider has not returned any yet.
-          </Text>
+          <Text style={styles.emptyTitle}>{emptyTitle}</Text>
+          <Text style={styles.stateText}>{emptyBody}</Text>
         </View>
       }
       showsVerticalScrollIndicator={false}

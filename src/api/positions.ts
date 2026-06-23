@@ -15,6 +15,8 @@ export type WalletPositions = {
   chainId: string;
   enabledChains?: string[];
   positions: WalletPosition[];
+  isPartial?: boolean;
+  partialReasons?: string[];
 };
 
 type WalletPositionsResponse = {
