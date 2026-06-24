@@ -12,6 +12,21 @@ const CHAIN_TRANSACTION_EXPLORER_BASE_URLS: Record<string, string> = {
   'base-mainnet': 'https://basescan.org/tx/',
 };
 
+const CANONICAL_PROTECTED_TOKEN_ADDRESSES_BY_CHAIN: Record<string, string[]> = {
+  'ethereum-mainnet': [
+    '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',
+    '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+    '0xdac17f958d2ee523a2206206994597c13d831ec7',
+    '0x6b175474e89094c44da98b954eedeac495271d0f',
+  ],
+  'base-mainnet': [
+    '0x4200000000000000000000000000000000000006',
+    '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+    '0xfde4c96c8593536e31f229ea8f37b2ada2699bb2',
+    '0x50c5725949a6f0c72e6c4a641f24049a917db0cb',
+  ],
+};
+
 export const SUPPORTED_WALLET_CHAIN_OPTIONS = [
   {chainId: 'ethereum-mainnet', label: 'Ethereum'},
   {chainId: 'base-mainnet', label: 'Base'},
@@ -83,4 +98,21 @@ export function getTransactionExplorerUrl(
   }
 
   return `${baseUrl}${transactionHash}`;
+}
+
+export function isCanonicalProtectedTokenAddress(
+  chainId: string | null | undefined,
+  tokenAddress: string | null | undefined,
+): boolean {
+  if (
+    typeof chainId !== 'string' ||
+    chainId.length === 0 ||
+    typeof tokenAddress !== 'string' ||
+    tokenAddress.length === 0
+  ) {
+    return false;
+  }
+
+  const normalizedAddress = tokenAddress.toLowerCase();
+  return CANONICAL_PROTECTED_TOKEN_ADDRESSES_BY_CHAIN[chainId]?.includes(normalizedAddress) ?? false;
 }

@@ -12,6 +12,7 @@ import {getWalletHoldings, type TokenHolding, type WalletHoldings} from '../api/
 import {TokenHoldingCard} from '../components/TokenHoldingCard';
 import {colors} from '../theme/colors';
 import {formatUsd} from '../utils/format';
+import {isCanonicalProtectedTokenAddress} from '../utils/chains';
 
 type TokensScreenProps = {
   walletId: string;
@@ -92,6 +93,26 @@ function getFilteredTotalBalanceUsd(holdings: TokenHolding[]) {
   return hasAnyPricedNonSuspiciousHolding ? total : null;
 }
 
+function isLowValueHolding(holding: TokenHolding) {
+  if (holding.isSuspicious) {
+    return false;
+  }
+
+  if (!holding.tokenAddress) {
+    return false;
+  }
+
+  if (isCanonicalProtectedTokenAddress(holding.chainId, holding.tokenAddress)) {
+    return false;
+  }
+
+  if (holding.balanceUsd == null) {
+    return true;
+  }
+
+  return typeof holding.balanceUsd === 'number' && Number.isFinite(holding.balanceUsd) && holding.balanceUsd < 1;
+}
+
 export function TokensScreen({
   walletId,
   selectedChainId = null,
@@ -102,6 +123,7 @@ export function TokensScreen({
   const [loading, setLoading] = useState(prefetchedHoldings ? false : prefetchedHoldingsLoading || true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showLowValueTokens, setShowLowValueTokens] = useState(false);
   const [showSuspiciousTokens, setShowSuspiciousTokens] = useState(false);
 
   async function loadHoldings(isRefresh = false) {
@@ -155,9 +177,17 @@ export function TokensScreen({
   );
   const tokenBalancesAvailable = effectiveHoldings?.tokenBalancesAvailable ?? true;
   const tokenBalancesReason = effectiveHoldings?.tokenBalancesReason ?? null;
-  const visibleTokenHoldings = useMemo(
-    () => sortTokenHoldingsByUsdValue(filteredHoldings.filter((holding) => !holding.isSuspicious)),
+  const nonSuspiciousHoldings = useMemo(
+    () => filteredHoldings.filter((holding) => !holding.isSuspicious),
     [filteredHoldings],
+  );
+  const visibleTokenHoldings = useMemo(
+    () => sortTokenHoldingsByUsdValue(nonSuspiciousHoldings.filter((holding) => !isLowValueHolding(holding))),
+    [nonSuspiciousHoldings],
+  );
+  const lowValueTokenHoldings = useMemo(
+    () => sortTokenHoldingsByUsdValue(nonSuspiciousHoldings.filter((holding) => isLowValueHolding(holding))),
+    [nonSuspiciousHoldings],
   );
   const suspiciousTokenHoldings = useMemo(
     () => sortTokenHoldingsByUsdValue(filteredHoldings.filter((holding) => holding.isSuspicious)),
@@ -210,7 +240,13 @@ export function TokensScreen({
     <FlatList
       data={visibleTokenHoldings}
       keyExtractor={item => `${item.chainId ?? 'unknown'}:${item.tokenAddress ?? 'native-eth'}`}
-      contentContainerStyle={visibleTokenHoldings.length === 0 && suspiciousTokenHoldings.length === 0 ? styles.emptyContent : styles.listContent}
+      contentContainerStyle={
+        visibleTokenHoldings.length === 0 &&
+        lowValueTokenHoldings.length === 0 &&
+        suspiciousTokenHoldings.length === 0
+          ? styles.emptyContent
+          : styles.listContent
+      }
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={() => void loadHoldings(true)} tintColor={colors.accent} />
       }
@@ -234,7 +270,7 @@ export function TokensScreen({
       renderItem={({item}) => <TokenHoldingCard holding={item} />}
       ItemSeparatorComponent={() => <View style={styles.separator} />}
       ListEmptyComponent={
-        !hasVisibleHoldings && suspiciousTokenHoldings.length === 0 ? (
+        !hasVisibleHoldings && lowValueTokenHoldings.length === 0 && suspiciousTokenHoldings.length === 0 ? (
           <View style={styles.centerState}>
             <Text style={styles.emptyTitle}>No token holdings yet</Text>
             <Text style={styles.stateText}>
@@ -246,40 +282,67 @@ export function TokensScreen({
         ) : (
           <View style={styles.mainListEmptyState}>
             <Text style={styles.mainListEmptyTitle}>Main token list is clean</Text>
-            <Text style={styles.stateText}>Only suspicious tokens were found for this wallet. You can inspect them below if needed.</Text>
+            <Text style={styles.stateText}>Only low value or suspicious tokens were found for this wallet. You can inspect them below if needed.</Text>
           </View>
         )
       }
       ListFooterComponent={
-        suspiciousTokenHoldings.length > 0 ? (
-          <View style={styles.suspiciousSection}>
-            <Pressable style={styles.suspiciousHeader} onPress={() => setShowSuspiciousTokens((current) => !current)}>
-              <View style={styles.suspiciousHeaderTextBlock}>
-                <Text style={styles.suspiciousTitle}>Suspicious tokens</Text>
-                <Text style={styles.suspiciousSubtitle}>
-                  {suspiciousTokenHoldings.length} token{suspiciousTokenHoldings.length === 1 ? '' : 's'} flagged by basic heuristics. Suspicious tokens are excluded from total balance.
-                </Text>
-              </View>
-              <Text style={styles.suspiciousToggle}>{showSuspiciousTokens ? 'Hide' : 'Show'}</Text>
-            </Pressable>
+        <>
+          {lowValueTokenHoldings.length > 0 ? (
+            <View style={styles.lowValueSection}>
+              <Pressable style={styles.lowValueHeader} onPress={() => setShowLowValueTokens((current) => !current)}>
+                <View style={styles.lowValueHeaderTextBlock}>
+                  <Text style={styles.lowValueTitle}>Low value tokens</Text>
+                  <Text style={styles.lowValueSubtitle}>
+                    {lowValueTokenHoldings.length} token{lowValueTokenHoldings.length === 1 ? '' : 's'} moved out of the main list to keep your portfolio view cleaner. Their value still counts toward the total when priced.
+                  </Text>
+                </View>
+                <Text style={styles.lowValueToggle}>{showLowValueTokens ? 'Hide' : 'Show'}</Text>
+              </Pressable>
 
-            {showSuspiciousTokens ? (
-              <View style={styles.suspiciousList}>
-                {suspiciousTokenHoldings.map((holding, index) => (
-                  <View key={`${holding.chainId ?? 'unknown'}:${holding.tokenAddress ?? 'suspicious-native-' + index}`}>
-                    <TokenHoldingCard holding={holding} subdued />
-                    {holding.suspicionReasons.length > 0 ? (
-                      <Text style={styles.suspicionReasonText}>
-                        {holding.suspicionReasons.map(renderSuspicionReason).join(' · ')}
-                      </Text>
-                    ) : null}
-                    {index < suspiciousTokenHoldings.length - 1 ? <View style={styles.separator} /> : null}
-                  </View>
-                ))}
-              </View>
-            ) : null}
-          </View>
-        ) : null
+              {showLowValueTokens ? (
+                <View style={styles.lowValueList}>
+                  {lowValueTokenHoldings.map((holding, index) => (
+                    <View key={`${holding.chainId ?? 'unknown'}:${holding.tokenAddress ?? 'low-value-' + index}`}>
+                      <TokenHoldingCard holding={holding} subdued />
+                      {index < lowValueTokenHoldings.length - 1 ? <View style={styles.separator} /> : null}
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+
+          {suspiciousTokenHoldings.length > 0 ? (
+            <View style={styles.suspiciousSection}>
+              <Pressable style={styles.suspiciousHeader} onPress={() => setShowSuspiciousTokens((current) => !current)}>
+                <View style={styles.suspiciousHeaderTextBlock}>
+                  <Text style={styles.suspiciousTitle}>Suspicious tokens</Text>
+                  <Text style={styles.suspiciousSubtitle}>
+                    {suspiciousTokenHoldings.length} token{suspiciousTokenHoldings.length === 1 ? '' : 's'} flagged by basic heuristics. Suspicious tokens are excluded from total balance.
+                  </Text>
+                </View>
+                <Text style={styles.suspiciousToggle}>{showSuspiciousTokens ? 'Hide' : 'Show'}</Text>
+              </Pressable>
+
+              {showSuspiciousTokens ? (
+                <View style={styles.suspiciousList}>
+                  {suspiciousTokenHoldings.map((holding, index) => (
+                    <View key={`${holding.chainId ?? 'unknown'}:${holding.tokenAddress ?? 'suspicious-native-' + index}`}>
+                      <TokenHoldingCard holding={holding} subdued />
+                      {holding.suspicionReasons.length > 0 ? (
+                        <Text style={styles.suspicionReasonText}>
+                          {holding.suspicionReasons.map(renderSuspicionReason).join(' · ')}
+                        </Text>
+                      ) : null}
+                      {index < suspiciousTokenHoldings.length - 1 ? <View style={styles.separator} /> : null}
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+        </>
       }
       showsVerticalScrollIndicator={false}
     />
@@ -411,6 +474,44 @@ const styles = StyleSheet.create({
   suspiciousSection: {
     marginTop: 18,
     paddingTop: 4,
+  },
+  lowValueSection: {
+    marginTop: 18,
+    paddingTop: 4,
+  },
+  lowValueHeader: {
+    backgroundColor: colors.elevated,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  lowValueHeaderTextBlock: {
+    flex: 1,
+  },
+  lowValueTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  lowValueSubtitle: {
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.textSecondary,
+  },
+  lowValueToggle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.textSecondary,
+  },
+  lowValueList: {
+    marginTop: 10,
   },
   suspiciousHeader: {
     backgroundColor: colors.elevated,
