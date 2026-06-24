@@ -450,7 +450,7 @@ export function WalletDetailScreen({wallet, initialTab, onBack, onEdit}: WalletD
               ) : filteredTotalsLoading ? (
                 <Text style={styles.performanceCollecting}>Loading {selectedNetworkLabel} totals...</Text>
               ) : selectedNetwork != null ? (
-                <Text style={styles.performanceCollecting}>Filtered by {selectedNetworkLabel}</Text>
+                <Text style={styles.performanceCollecting}>24h performance is available for All Networks only</Text>
               ) : (
                 <Text style={styles.performanceCollecting}>{performanceUnavailableText}</Text>
               )}
