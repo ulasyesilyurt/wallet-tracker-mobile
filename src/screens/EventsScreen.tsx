@@ -138,8 +138,7 @@ export function EventsScreen({walletId, selectedChainId = null}: EventsScreenPro
             <Text style={styles.summaryKicker}>History</Text>
             <Text style={styles.summaryTitle}>Recent wallet activity</Text>
             <Text style={styles.summaryBody}>
-              Incoming and outgoing transfers are organized here so you can scan
-              movement quickly.
+              Recent transfers for this wallet.
             </Text>
           </View>
         ) : null
@@ -207,10 +206,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderRadius: 22,
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 11,
     borderWidth: 1,
     borderColor: colors.border,
-    marginBottom: 10,
+    marginBottom: 8,
   },
   summaryKicker: {
     fontSize: 12,
@@ -220,15 +219,15 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   summaryTitle: {
-    marginTop: 7,
-    fontSize: 20,
+    marginTop: 6,
+    fontSize: 18,
     fontWeight: '800',
     color: colors.textPrimary,
   },
   summaryBody: {
-    marginTop: 7,
-    fontSize: 14,
-    lineHeight: 20,
+    marginTop: 5,
+    fontSize: 13,
+    lineHeight: 17,
     color: colors.textSecondary,
   },
   dateSeparator: {
