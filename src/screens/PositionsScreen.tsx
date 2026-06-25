@@ -268,7 +268,7 @@ export function PositionsScreen({
   const summaryBody = isDegradedProviderEmptyState
     ? 'Protocol positions could not be refreshed right now because the provider is rate-limited. Try again later.'
     : protocolPositions.length > 0
-      ? 'Staked and protocol assets live here. Combine Tokens and Positions for a fuller portfolio view.'
+      ? 'Staked and protocol assets.'
       : 'Protocol deposits, staking, and vault assets will appear here when available.';
   const emptyTitle = isDegradedProviderEmptyState
     ? 'Positions temporarily unavailable'
@@ -366,12 +366,12 @@ const styles = StyleSheet.create({
   summaryCard: {
     backgroundColor: colors.card,
     borderRadius: 22,
-    paddingHorizontal: 16,
-    paddingVertical: 15,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
     borderWidth: 1,
     borderColor: colors.border,
-    marginTop: 12,
-    marginBottom: 12,
+    marginTop: 6,
+    marginBottom: 8,
   },
   summaryTopRow: {
     flexDirection: 'row',
@@ -387,32 +387,32 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   summaryPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
     borderRadius: 999,
     backgroundColor: colors.elevated,
     borderWidth: 1,
     borderColor: colors.border,
   },
   summaryPillText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     color: colors.textSecondary,
   },
   summaryTitle: {
-    marginTop: 8,
-    fontSize: 24,
+    marginTop: 6,
+    fontSize: 21,
     fontWeight: '800',
     color: colors.textPrimary,
   },
   summaryBody: {
-    marginTop: 8,
-    fontSize: 14,
-    lineHeight: 20,
+    marginTop: 5,
+    fontSize: 13,
+    lineHeight: 17,
     color: colors.textSecondary,
   },
   separator: {
-    height: 10,
+    height: 8,
   },
   emptyTitle: {
     fontSize: 22,
@@ -424,8 +424,8 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     borderColor: colors.border,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
+    paddingHorizontal: 13,
+    paddingVertical: 10,
   },
   positionHeader: {
     flexDirection: 'row',
@@ -437,27 +437,27 @@ const styles = StyleSheet.create({
     paddingRight: 12,
   },
   positionProtocol: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
     color: colors.textPrimary,
   },
   positionAsset: {
-    marginTop: 4,
-    fontSize: 13,
+    marginTop: 2,
+    fontSize: 12,
     color: colors.textSecondary,
   },
   positionValueBlock: {
     alignItems: 'flex-end',
-    minWidth: 102,
+    minWidth: 94,
   },
   positionAmount: {
-    marginTop: 4,
-    fontSize: 13,
+    marginTop: 2,
+    fontSize: 12,
     fontWeight: '700',
     color: colors.textSecondary,
   },
   positionValueUsd: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
     color: colors.textPrimary,
   },
@@ -465,35 +465,35 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   positionMetaRow: {
-    marginTop: 10,
+    marginTop: 8,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
   positionMetaPills: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     flexShrink: 1,
   },
   metaPill: {
-    paddingHorizontal: 9,
-    paddingVertical: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 999,
     backgroundColor: colors.elevated,
     borderWidth: 1,
     borderColor: colors.border,
   },
   positionMeta: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     color: colors.textTertiary,
     textTransform: 'uppercase',
-    letterSpacing: 0.8,
+    letterSpacing: 0.6,
   },
   positionMetaSecondary: {
-    fontSize: 11,
+    fontSize: 10,
     color: colors.textTertiary,
   },
 });
