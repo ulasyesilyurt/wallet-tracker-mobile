@@ -71,8 +71,8 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     borderColor: colors.border,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
   },
   cardSubdued: {
     backgroundColor: colors.elevated,
@@ -82,12 +82,12 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
   iconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: colors.elevated,
     alignItems: 'center',
     justifyContent: 'center',
@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
   },
   iconText: {
     fontWeight: '800',
-    fontSize: 14,
+    fontSize: 13,
   },
   iconTextSubdued: {
     color: colors.textSecondary,
@@ -107,7 +107,7 @@ const styles = StyleSheet.create({
     paddingRight: 8,
   },
   symbol: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
     color: colors.textPrimary,
   },
@@ -115,8 +115,8 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   name: {
-    marginTop: 3,
-    fontSize: 13,
+    marginTop: 2,
+    fontSize: 12,
     color: colors.textSecondary,
   },
   nameSubdued: {
@@ -124,10 +124,10 @@ const styles = StyleSheet.create({
   },
   valueBlock: {
     alignItems: 'flex-end',
-    minWidth: 92,
+    minWidth: 85,
   },
   balanceUsd: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
     color: colors.textPrimary,
   },
@@ -138,7 +138,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   balance: {
-    marginTop: 4,
+    marginTop: 2,
     fontSize: 12,
     fontWeight: '700',
     color: colors.textTertiary,
@@ -147,8 +147,8 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   valueMeta: {
-    marginTop: 4,
-    fontSize: 11,
+    marginTop: 2,
+    fontSize: 10,
     color: colors.textTertiary,
   },
   valueMetaSubdued: {
