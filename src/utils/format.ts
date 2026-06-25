@@ -6,6 +6,57 @@ export function shortenAddress(address: string) {
   return address.slice(0, 6) + '...' + address.slice(-4);
 }
 
+export function getEventDayKey(dateString: string) {
+  const date = new Date(dateString);
+
+  if (Number.isNaN(date.getTime())) {
+    return dateString;
+  }
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
+export function formatEventDayLabel(dateString: string) {
+  const date = new Date(dateString);
+
+  if (Number.isNaN(date.getTime())) {
+    return dateString;
+  }
+
+  const today = new Date();
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const startOfTargetDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const millisecondsPerDay = 24 * 60 * 60 * 1000;
+  const dayDifference = Math.round(
+    (startOfToday.getTime() - startOfTargetDay.getTime()) / millisecondsPerDay,
+  );
+
+  if (dayDifference === 0) {
+    return 'Today';
+  }
+
+  if (dayDifference === 1) {
+    return 'Yesterday';
+  }
+
+  if (date.getFullYear() === today.getFullYear()) {
+    return date.toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+    });
+  }
+
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
 export function formatUsd(value: number | null | undefined, fallback = 'Unavailable') {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
     return fallback;

@@ -2,6 +2,7 @@ import React, {useEffect, useState} from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  ListRenderItem,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -12,6 +13,45 @@ import {getGlobalActivity} from '../api/activity';
 import {EventCard} from '../components/EventCard';
 import {colors} from '../theme/colors';
 import type {WalletEvent} from '../api/events';
+import {formatEventDayLabel, getEventDayKey} from '../utils/format';
+
+type ActivityListItem =
+  | {
+      type: 'separator';
+      key: string;
+      label: string;
+    }
+  | {
+      type: 'event';
+      key: string;
+      event: WalletEvent;
+    };
+
+function buildActivityListItems(events: WalletEvent[]): ActivityListItem[] {
+  const items: ActivityListItem[] = [];
+  let lastDayKey: string | null = null;
+
+  events.forEach((event) => {
+    const dayKey = getEventDayKey(event.occurredAt);
+
+    if (dayKey !== lastDayKey) {
+      items.push({
+        type: 'separator',
+        key: `separator:${dayKey}`,
+        label: formatEventDayLabel(event.occurredAt),
+      });
+      lastDayKey = dayKey;
+    }
+
+    items.push({
+      type: 'event',
+      key: `event:${event.id}`,
+      event,
+    });
+  });
+
+  return items;
+}
 
 export function ActivityScreen() {
   const [events, setEvents] = useState<WalletEvent[]>([]);
@@ -28,7 +68,10 @@ export function ActivityScreen() {
 
     try {
       const result = await getGlobalActivity();
-      setEvents(result.items);
+      const sortedEvents = [...result.items].sort((left, right) => {
+        return new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime();
+      });
+      setEvents(sortedEvents);
       setError(null);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Could not load activity');
@@ -63,10 +106,24 @@ export function ActivityScreen() {
     );
   }
 
+  const listItems = buildActivityListItems(events);
+
+  const renderItem: ListRenderItem<ActivityListItem> = ({item}) => {
+    if (item.type === 'separator') {
+      return (
+        <View style={styles.dateSeparator}>
+          <Text style={styles.dateSeparatorText}>{item.label}</Text>
+        </View>
+      );
+    }
+
+    return <EventCard event={item.event} />;
+  };
+
   return (
     <FlatList
-      data={events}
-      keyExtractor={item => item.id}
+      data={listItems}
+      keyExtractor={item => item.key}
       contentContainerStyle={events.length === 0 ? styles.emptyContent : styles.listContent}
       refreshControl={
         <RefreshControl
@@ -87,7 +144,7 @@ export function ActivityScreen() {
           </View>
         ) : null
       }
-      renderItem={({item}) => <EventCard event={item} />}
+      renderItem={renderItem}
       ListEmptyComponent={
         <View style={styles.centerState}>
           <Text style={styles.emptyTitle}>No activity yet</Text>
@@ -138,6 +195,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     color: colors.textSecondary,
+  },
+  dateSeparator: {
+    paddingTop: 6,
+    paddingBottom: 8,
+  },
+  dateSeparatorText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: colors.textTertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
   centerState: {
     flex: 1,
