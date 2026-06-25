@@ -268,7 +268,7 @@ export function PositionsScreen({
   const summaryBody = isDegradedProviderEmptyState
     ? 'Protocol positions could not be refreshed right now because the provider is rate-limited. Try again later.'
     : protocolPositions.length > 0
-      ? 'Staked and protocol assets.'
+      ? null
       : 'Protocol deposits, staking, and vault assets will appear here when available.';
   const emptyTitle = isDegradedProviderEmptyState
     ? 'Positions temporarily unavailable'
@@ -305,7 +305,9 @@ export function PositionsScreen({
             ) : null}
           </View>
           <Text style={styles.summaryTitle}>{summaryTitle}</Text>
-          <Text style={styles.summaryBody}>{summaryBody}</Text>
+          {summaryBody ? (
+            <Text style={styles.summaryBody}>{summaryBody}</Text>
+          ) : null}
         </View>
       }
       renderItem={({item}) => <PositionCard position={item} />}

@@ -132,17 +132,6 @@ export function EventsScreen({walletId, selectedChainId = null}: EventsScreenPro
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={() => void loadEvents(true)} tintColor={colors.accent} />
       }
-      ListHeaderComponent={
-        filteredEvents.length > 0 ? (
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryKicker}>History</Text>
-            <Text style={styles.summaryTitle}>Recent wallet activity</Text>
-            <Text style={styles.summaryBody}>
-              Recent transfers for this wallet.
-            </Text>
-          </View>
-        ) : null
-      }
       renderItem={renderItem}
       ListEmptyComponent={
         <View style={styles.centerState}>
@@ -201,34 +190,6 @@ const styles = StyleSheet.create({
   retryButtonText: {
     color: colors.primaryCtaText,
     fontWeight: '700',
-  },
-  summaryCard: {
-    backgroundColor: colors.card,
-    borderRadius: 22,
-    paddingHorizontal: 16,
-    paddingVertical: 11,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 8,
-  },
-  summaryKicker: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.textTertiary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  summaryTitle: {
-    marginTop: 6,
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  summaryBody: {
-    marginTop: 5,
-    fontSize: 13,
-    lineHeight: 17,
-    color: colors.textSecondary,
   },
   dateSeparator: {
     paddingTop: 6,

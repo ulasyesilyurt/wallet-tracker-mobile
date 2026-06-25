@@ -132,18 +132,6 @@ export function ActivityScreen() {
           tintColor={colors.accent}
         />
       }
-      ListHeaderComponent={
-        events.length > 0 ? (
-          <View style={styles.headerCard}>
-            <Text style={styles.headerKicker}>Activity</Text>
-            <Text style={styles.headerTitle}>Across followed wallets</Text>
-            <Text style={styles.headerBody}>
-              Recent transfers across your tracked wallets appear here so you can
-              scan movement in one place.
-            </Text>
-          </View>
-        ) : null
-      }
       renderItem={renderItem}
       ListEmptyComponent={
         <View style={styles.centerState}>
@@ -167,34 +155,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingTop: 18,
     paddingBottom: 28,
-  },
-  headerCard: {
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 22,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    marginBottom: 10,
-  },
-  headerKicker: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.textTertiary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  headerTitle: {
-    marginTop: 7,
-    fontSize: 22,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  headerBody: {
-    marginTop: 7,
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.textSecondary,
   },
   dateSeparator: {
     paddingTop: 6,

@@ -196,7 +196,7 @@ export function TokensScreen({
   const hasAnyHoldings = filteredHoldings.length > 0;
   const hasVisibleHoldings = visibleTokenHoldings.length > 0;
   const summaryBodyText = totalBalanceText
-    ? 'Direct wallet holdings.'
+    ? null
     : hasAnyHoldings
       ? 'Pricing temporarily unavailable.'
       : 'No direct token balances yet.';
@@ -259,7 +259,9 @@ export function TokensScreen({
             </View>
           </View>
           <Text style={styles.summaryTitle}>{totalBalanceText || 'Balance unavailable'}</Text>
-          <Text style={styles.summaryBody}>{summaryBodyText}</Text>
+          {summaryBodyText ? (
+            <Text style={styles.summaryBody}>{summaryBodyText}</Text>
+          ) : null}
           {summaryNoticeText ? (
             <View style={styles.summaryNotice}>
               <Text style={styles.summaryNoticeText}>{summaryNoticeText}</Text>

@@ -229,9 +229,6 @@ export function NotificationHistoryScreen({
           items.length > 0 ? (
           <View style={styles.summaryCard}>
             <Text style={styles.summaryTitle}>Notification history</Text>
-            <Text style={styles.summaryBody}>
-              Recent wallet alerts sent to your device are saved here, even if you missed the push.
-            </Text>
           </View>
         ) : null
       }
@@ -294,15 +291,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   summaryTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '800',
     color: colors.textPrimary,
-  },
-  summaryBody: {
-    marginTop: 6,
-    fontSize: 14,
-    lineHeight: 21,
-    color: colors.textSecondary,
   },
   notificationCard: {
     backgroundColor: colors.card,
