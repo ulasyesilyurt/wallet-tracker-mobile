@@ -394,12 +394,12 @@ const styles = StyleSheet.create({
   summaryCard: {
     backgroundColor: colors.card,
     borderRadius: 22,
-    paddingHorizontal: 16,
-    paddingVertical: 13,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderWidth: 1,
     borderColor: colors.border,
-    marginTop: 8,
-    marginBottom: 10,
+    marginTop: 4,
+    marginBottom: 8,
   },
   summaryTopRow: {
     flexDirection: 'row',
@@ -428,25 +428,25 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   summaryTitle: {
-    marginTop: 6,
-    fontSize: 22,
+    marginTop: 4,
+    fontSize: 20,
     fontWeight: '800',
     color: colors.textPrimary,
   },
   summaryBody: {
-    marginTop: 6,
+    marginTop: 4,
     fontSize: 13,
-    lineHeight: 18,
+    lineHeight: 16,
     color: colors.textSecondary,
   },
   summaryNotice: {
-    marginTop: 8,
+    marginTop: 6,
     borderRadius: 14,
     backgroundColor: colors.elevated,
     borderWidth: 1,
     borderColor: colors.border,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 6,
   },
   summaryNoticeText: {
     fontSize: 11,
@@ -454,7 +454,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   separator: {
-    height: 10,
+    height: 8,
   },
   emptyTitle: {
     fontSize: 22,
@@ -472,11 +472,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   suspiciousSection: {
-    marginTop: 18,
+    marginTop: 14,
     paddingTop: 4,
   },
   lowValueSection: {
-    marginTop: 18,
+    marginTop: 14,
     paddingTop: 4,
   },
   lowValueHeader: {
@@ -485,7 +485,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 11,
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
@@ -500,7 +500,7 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   },
   lowValueSubtitle: {
-    marginTop: 4,
+    marginTop: 3,
     fontSize: 12,
     lineHeight: 17,
     color: colors.textSecondary,
@@ -511,7 +511,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   lowValueList: {
-    marginTop: 10,
+    marginTop: 8,
   },
   suspiciousHeader: {
     backgroundColor: colors.elevated,
@@ -519,7 +519,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingVertical: 11,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -534,7 +534,7 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   },
   suspiciousSubtitle: {
-    marginTop: 4,
+    marginTop: 3,
     fontSize: 13,
     lineHeight: 18,
     color: colors.textSecondary,

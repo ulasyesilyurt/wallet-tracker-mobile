@@ -574,7 +574,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
     paddingHorizontal: 18,
-    paddingTop: 20,
+    paddingTop: 16,
   },
   headerRow: {
     flexDirection: 'row',
@@ -615,11 +615,11 @@ const styles = StyleSheet.create({
     position: 'relative',
     overflow: 'hidden',
     marginTop: 6,
-    marginBottom: 8,
+    marginBottom: 6,
     borderRadius: 22,
     backgroundColor: colors.card,
     paddingHorizontal: 15,
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -653,7 +653,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   portfolioInlineBlock: {
-    marginTop: 10,
+    marginTop: 8,
   },
   portfolioLoadingRow: {
     marginTop: 6,
@@ -673,7 +673,7 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   },
   allocationBar: {
-    marginTop: 8,
+    marginTop: 6,
     height: 6,
     borderRadius: 999,
     overflow: 'hidden',
@@ -687,7 +687,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent,
   },
   allocationLegendRow: {
-    marginTop: 8,
+    marginTop: 6,
     flexDirection: 'row',
     gap: 16,
   },
@@ -743,11 +743,11 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   networkFilterWrap: {
-    marginBottom: 10,
+    marginBottom: 8,
     zIndex: 20,
   },
   networkFilterLabel: {
-    marginBottom: 7,
+    marginBottom: 5,
     fontSize: 12,
     fontWeight: '700',
     color: colors.textTertiary,
@@ -758,13 +758,13 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   networkDropdownButton: {
-    minHeight: 42,
+    minHeight: 38,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.elevated,
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -812,7 +812,7 @@ const styles = StyleSheet.create({
   tabsRow: {
     flexDirection: 'row',
     gap: 8,
-    marginBottom: 10,
+    marginBottom: 8,
     borderRadius: 18,
     padding: 4,
     backgroundColor: colors.elevated,
@@ -822,7 +822,7 @@ const styles = StyleSheet.create({
   tabButton: {
     flex: 1,
     borderRadius: 14,
-    paddingVertical: 10,
+    paddingVertical: 8,
     alignItems: 'center',
   },
   tabButtonActive: {
