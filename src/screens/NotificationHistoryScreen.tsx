@@ -91,14 +91,9 @@ function NotificationHistoryCard({
   return (
     <Pressable style={({pressed}) => [styles.notificationCard, pressed ? styles.notificationCardPressed : null]} onPress={onPress}>
       <View style={styles.notificationTopRow}>
-        <View style={styles.notificationIdentity}>
-          <Text style={styles.notificationWalletTitle} numberOfLines={1}>
-            {walletTitle}
-          </Text>
-          <Text style={styles.notificationMetaLine} numberOfLines={1}>
-            {directionLabel} · {eventTypeLabel}
-          </Text>
-        </View>
+        <Text style={styles.notificationAmount} numberOfLines={1}>
+          {amountLabel}
+        </Text>
         <View style={[styles.statusBadge, statusStyle]}>
           <Text style={[styles.statusBadgeText, item.status === 'failed' ? styles.statusBadgeTextFailed : null]}>
             {statusLabel}
@@ -106,9 +101,14 @@ function NotificationHistoryCard({
         </View>
       </View>
 
-      <Text style={styles.notificationAmount} numberOfLines={1}>
-        {amountLabel}
-      </Text>
+      <View style={styles.notificationIdentity}>
+        <Text style={styles.notificationWalletTitle} numberOfLines={1}>
+          {walletTitle}
+        </Text>
+        <Text style={styles.notificationMetaLine} numberOfLines={1}>
+          {directionLabel} · {eventTypeLabel}
+        </Text>
+      </View>
 
       <View style={styles.notificationBottomRow}>
         <View style={styles.notificationBottomLeft}>
@@ -308,10 +308,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 20,
-    paddingHorizontal: 15,
-    paddingVertical: 13,
-    marginBottom: 10,
+    borderRadius: 18,
+    paddingHorizontal: 13,
+    paddingVertical: 11,
+    marginBottom: 8,
   },
   notificationCardPressed: {
     opacity: 0.96,
@@ -323,23 +323,19 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
   },
-  notificationIdentity: {
-    flex: 1,
-    minWidth: 0,
-  },
   notificationWalletTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
     color: colors.textPrimary,
   },
   notificationMetaLine: {
-    marginTop: 4,
-    fontSize: 12,
+    marginTop: 2,
+    fontSize: 11,
     color: colors.textSecondary,
   },
   statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
     borderRadius: 999,
     borderWidth: 1,
     alignItems: 'center',
@@ -357,7 +353,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(94, 142, 245, 0.28)',
   },
   statusBadgeText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     color: colors.textSecondary,
     textTransform: 'uppercase',
@@ -367,13 +363,19 @@ const styles = StyleSheet.create({
     color: colors.negative,
   },
   notificationAmount: {
-    marginTop: 10,
-    fontSize: 18,
+    flex: 1,
+    minWidth: 0,
+    fontSize: 16,
     fontWeight: '800',
     color: colors.textPrimary,
   },
+  notificationIdentity: {
+    flex: 1,
+    marginTop: 7,
+    minWidth: 0,
+  },
   notificationBottomRow: {
-    marginTop: 10,
+    marginTop: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -387,25 +389,25 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   chainPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
     borderRadius: 999,
     borderWidth: 1,
   },
   chainPillText: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '700',
     letterSpacing: 0.6,
   },
   notificationTimestamp: {
-    fontSize: 12,
+    fontSize: 11,
     color: colors.textTertiary,
     flexShrink: 1,
   },
   notificationError: {
-    marginTop: 8,
-    fontSize: 12,
-    lineHeight: 17,
+    marginTop: 7,
+    fontSize: 11,
+    lineHeight: 15,
     color: colors.textSecondary,
   },
   centerState: {
