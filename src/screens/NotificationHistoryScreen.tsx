@@ -9,32 +9,134 @@ import {
   View,
 } from 'react-native';
 import {getNotificationHistory, type NotificationHistoryItem} from '../api/notifications';
-import {EventCard} from '../components/EventCard';
 import {colors} from '../theme/colors';
-import type {WalletEvent} from '../api/events';
+import {formatActivityAmount} from '../utils/format';
+import {formatChainDisplayName, getChainBadgeTheme} from '../utils/chains';
 
 type NotificationHistoryScreenProps = {
   onBack: () => void;
   onOpenWalletHistory: (walletId: string) => void;
 };
 
-function mapNotificationToEvent(item: NotificationHistoryItem): WalletEvent {
-  return {
-    id: item.walletEvent.id,
-    walletId: item.walletEvent.walletId,
-    walletLabel: item.walletEvent.walletLabel,
-    walletAddress: item.walletEvent.walletAddress,
-    chainId: item.walletEvent.chainId,
-    transactionHash: item.walletEvent.transactionHash,
-    eventType: item.walletEvent.eventType,
-    assetSymbol: item.walletEvent.assetSymbol,
-    amount: item.walletEvent.amount,
-    direction: item.walletEvent.direction,
-    occurredAt: item.walletEvent.occurredAt,
-    createdAt: item.walletEvent.createdAt,
-    fromAddress: item.walletEvent.fromAddress,
-    toAddress: item.walletEvent.toAddress,
-  };
+function formatNotificationTimestamp(item: NotificationHistoryItem) {
+  const timestamp = item.sentAt ?? item.createdAt;
+  const date = new Date(timestamp);
+
+  if (Number.isNaN(date.getTime())) {
+    return timestamp;
+  }
+
+  return date.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function formatEventType(value: string) {
+  return value
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, character => character.toUpperCase());
+}
+
+function formatDirection(value: string | null) {
+  if (value === 'incoming') {
+    return 'Received';
+  }
+
+  if (value === 'outgoing') {
+    return 'Sent';
+  }
+
+  return 'Activity';
+}
+
+function formatStatusLabel(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function NotificationHistoryCard({
+  item,
+  onPress,
+}: {
+  item: NotificationHistoryItem;
+  onPress: () => void;
+}) {
+  const walletTitle = item.walletEvent.walletLabel || item.walletEvent.walletAddress || 'Tracked wallet';
+  const amountLabel = formatActivityAmount(
+    item.walletEvent.amount,
+    item.walletEvent.assetSymbol,
+    null,
+  );
+  const directionLabel = formatDirection(item.walletEvent.direction);
+  const eventTypeLabel = formatEventType(item.walletEvent.eventType);
+  const statusLabel = formatStatusLabel(item.status);
+  const statusStyle =
+    item.status === 'failed'
+      ? styles.statusFailed
+      : item.status === 'pending'
+        ? styles.statusPending
+        : styles.statusDelivered;
+  const chainTheme = getChainBadgeTheme(item.walletEvent.chainId);
+  const chainLabel = formatChainDisplayName(item.walletEvent.chainId).toUpperCase();
+  const timeLabel = formatNotificationTimestamp(item);
+  const statusTimePrefix =
+    item.status === 'failed'
+      ? 'Failed'
+      : item.status === 'pending'
+        ? 'Queued'
+        : 'Delivered';
+
+  return (
+    <Pressable style={({pressed}) => [styles.notificationCard, pressed ? styles.notificationCardPressed : null]} onPress={onPress}>
+      <View style={styles.notificationTopRow}>
+        <View style={styles.notificationIdentity}>
+          <Text style={styles.notificationWalletTitle} numberOfLines={1}>
+            {walletTitle}
+          </Text>
+          <Text style={styles.notificationMetaLine} numberOfLines={1}>
+            {directionLabel} · {eventTypeLabel}
+          </Text>
+        </View>
+        <View style={[styles.statusBadge, statusStyle]}>
+          <Text style={[styles.statusBadgeText, item.status === 'failed' ? styles.statusBadgeTextFailed : null]}>
+            {statusLabel}
+          </Text>
+        </View>
+      </View>
+
+      <Text style={styles.notificationAmount} numberOfLines={1}>
+        {amountLabel}
+      </Text>
+
+      <View style={styles.notificationBottomRow}>
+        <View style={styles.notificationBottomLeft}>
+          <View
+            style={[
+              styles.chainPill,
+              {
+                backgroundColor: chainTheme.backgroundColor,
+                borderColor: chainTheme.borderColor,
+              },
+            ]}>
+            <Text style={[styles.chainPillText, {color: chainTheme.textColor}]}>
+              {chainLabel}
+            </Text>
+          </View>
+          <Text style={styles.notificationTimestamp} numberOfLines={1}>
+            {statusTimePrefix} {timeLabel}
+          </Text>
+        </View>
+      </View>
+
+      {item.errorMessage ? (
+        <Text style={styles.notificationError} numberOfLines={2}>
+          {item.errorMessage}
+        </Text>
+      ) : null}
+    </Pressable>
+  );
 }
 
 export function NotificationHistoryScreen({
@@ -125,38 +227,23 @@ export function NotificationHistoryScreen({
         }
         ListHeaderComponent={
           items.length > 0 ? (
-            <View style={styles.summaryCard}>
-              <Text style={styles.summaryTitle}>Notification history</Text>
-              <Text style={styles.summaryBody}>
-                Recent wallet alerts are saved here even if you missed the system push.
-              </Text>
-            </View>
-          ) : null
-        }
-        renderItem={({item}) => (
-          <Pressable
-            style={styles.notificationRow}
-            onPress={() => onOpenWalletHistory(item.walletEvent.walletId)}>
-            <EventCard event={mapNotificationToEvent(item)} />
-            <View style={styles.statusRow}>
-              <Text
-                style={[
-                  styles.statusText,
-                  item.status === 'failed' ? styles.statusFailed : styles.statusDelivered,
-                ]}>
-                {item.status}
-              </Text>
-              {item.errorMessage ? (
-                <Text style={styles.errorMessage} numberOfLines={1}>
-                  {item.errorMessage}
-                </Text>
-              ) : null}
-            </View>
-          </Pressable>
-        )}
-        ListEmptyComponent={
-          <View style={styles.centerState}>
-            <Text style={styles.emptyTitle}>No notification history yet</Text>
+          <View style={styles.summaryCard}>
+            <Text style={styles.summaryTitle}>Notification history</Text>
+            <Text style={styles.summaryBody}>
+              Recent wallet alerts sent to your device are saved here, even if you missed the push.
+            </Text>
+          </View>
+        ) : null
+      }
+      renderItem={({item}) => (
+        <NotificationHistoryCard
+          item={item}
+          onPress={() => onOpenWalletHistory(item.walletEvent.walletId)}
+        />
+      )}
+      ListEmptyComponent={
+        <View style={styles.centerState}>
+          <Text style={styles.emptyTitle}>No notification history yet</Text>
             <Text style={styles.stateText}>
               Delivered wallet alerts will appear here once notifications are sent.
             </Text>
@@ -217,31 +304,109 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     color: colors.textSecondary,
   },
-  notificationRow: {
+  notificationCard: {
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 20,
+    paddingHorizontal: 15,
+    paddingVertical: 13,
     marginBottom: 10,
   },
-  statusRow: {
-    marginTop: -2,
-    paddingHorizontal: 8,
+  notificationCardPressed: {
+    opacity: 0.96,
+    transform: [{scale: 0.995}],
+  },
+  notificationTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  notificationIdentity: {
+    flex: 1,
+    minWidth: 0,
+  },
+  notificationWalletTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  notificationMetaLine: {
+    marginTop: 4,
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  statusDelivered: {
+    backgroundColor: colors.elevated,
+    borderColor: colors.border,
+  },
+  statusFailed: {
+    backgroundColor: 'rgba(242, 84, 91, 0.12)',
+    borderColor: 'rgba(242, 84, 91, 0.28)',
+  },
+  statusPending: {
+    backgroundColor: 'rgba(94, 142, 245, 0.12)',
+    borderColor: 'rgba(94, 142, 245, 0.28)',
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  statusBadgeTextFailed: {
+    color: colors.negative,
+  },
+  notificationAmount: {
+    marginTop: 10,
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.textPrimary,
+  },
+  notificationBottomRow: {
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  notificationBottomLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'capitalize',
-  },
-  statusDelivered: {
-    color: colors.textSecondary,
-  },
-  statusFailed: {
-    color: colors.negative,
-  },
-  errorMessage: {
+    minWidth: 0,
     flex: 1,
+  },
+  chainPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  chainPillText: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+  },
+  notificationTimestamp: {
     fontSize: 12,
     color: colors.textTertiary,
+    flexShrink: 1,
+  },
+  notificationError: {
+    marginTop: 8,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.textSecondary,
   },
   centerState: {
     flex: 1,
