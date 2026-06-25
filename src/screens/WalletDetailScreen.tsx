@@ -496,7 +496,6 @@ export function WalletDetailScreen({wallet, initialTab, onBack, onEdit}: WalletD
       </View>
 
       <View style={styles.networkFilterWrap}>
-        <Text style={styles.networkFilterLabel}>Network</Text>
         <View style={styles.networkDropdownContainer}>
           <Pressable
             style={styles.networkDropdownButton}
@@ -743,35 +742,29 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   networkFilterWrap: {
-    marginBottom: 8,
+    marginBottom: 6,
     zIndex: 20,
-  },
-  networkFilterLabel: {
-    marginBottom: 5,
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.textTertiary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
   },
   networkDropdownContainer: {
     position: 'relative',
+    alignSelf: 'flex-start',
   },
   networkDropdownButton: {
+    alignSelf: 'flex-start',
     minHeight: 38,
-    borderRadius: 14,
+    minWidth: 138,
+    borderRadius: 999,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.elevated,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: 10,
   },
   networkDropdownButtonText: {
-    flex: 1,
     fontSize: 14,
     fontWeight: '700',
     color: colors.textPrimary,
@@ -782,9 +775,9 @@ const styles = StyleSheet.create({
   },
   networkDropdownMenu: {
     position: 'absolute',
-    top: 48,
+    top: 44,
     left: 0,
-    right: 0,
+    minWidth: 152,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.border,
@@ -812,9 +805,9 @@ const styles = StyleSheet.create({
   tabsRow: {
     flexDirection: 'row',
     gap: 8,
-    marginBottom: 8,
+    marginBottom: 6,
     borderRadius: 18,
-    padding: 4,
+    padding: 3,
     backgroundColor: colors.elevated,
     borderWidth: 1,
     borderColor: colors.border,
@@ -822,7 +815,7 @@ const styles = StyleSheet.create({
   tabButton: {
     flex: 1,
     borderRadius: 14,
-    paddingVertical: 8,
+    paddingVertical: 7,
     alignItems: 'center',
   },
   tabButtonActive: {
