@@ -221,6 +221,29 @@ npx tsc --noEmit
 
 Runs TypeScript checks.
 
+## Continuous Integration
+
+GitHub Actions runs lightweight mobile checks on every push and pull request:
+
+```bash
+npm ci
+npx tsc --noEmit
+npx eslint src/auth
+```
+
+The workflow does not build the Android or iOS applications and does not require
+secrets.
+
+Full-repository lint is not yet a CI gate because `npm run lint` has pre-existing
+errors unrelated to the auth storage work. These currently include an unused
+React import in `PushRegistrationManager.tsx` and hook dependency findings in
+`EventsScreen.tsx`, `FollowingScreen.tsx`, `PositionsScreen.tsx`,
+`TokensScreen.tsx`, and `WalletDetailScreen.tsx`.
+
+The existing Jest smoke test is also not run in CI yet. Its current configuration
+cannot transform the ESM build imported by React Native Firebase Messaging, so
+the suite fails during module loading before any test executes.
+
 ## Status
 
 This project is under active development.
