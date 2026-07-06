@@ -71,7 +71,7 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
       }
     }
 
-    void bootstrapAuth();
+    bootstrapAuth();
 
     return () => {
       cancelled = true;
