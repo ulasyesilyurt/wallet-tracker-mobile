@@ -1,97 +1,239 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# Wallet Tracker App
 
-# Getting Started
+Wallet Tracker App is a React Native mobile application for tracking crypto wallets across multiple networks.
+It is designed to help users follow wallet balances, token holdings, DeFi positions, transaction history, and wallet activity from a clean mobile interface.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+This repository contains the **mobile frontend** of the project.
 
-## Step 1: Start Metro
+## Features
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+* Track multiple wallet addresses
+* Multi-chain wallet support
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+  * Ethereum
+  * Base
+* Wallet detail screen with portfolio overview
+* Token holdings list
+* DeFi / protocol positions screen
+* Transaction history by wallet
+* Global activity feed across followed wallets
+* Network filtering
 
-```sh
-# Using npm
+  * All Networks
+  * Ethereum
+  * Base
+* Suspicious token separation
+* Low-value token grouping
+* Notification history screen
+* Compact mobile-first dark UI
+* External explorer links for transactions
+* Copyable wallet / counterparty addresses
+
+## Tech Stack
+
+* React Native
+* TypeScript
+* React Navigation
+* React Native Vector Icons
+* Clipboard support
+* REST API integration with a Node.js backend
+
+## Project Structure
+
+```txt
+src/
+  api/              API clients
+  components/       Shared UI components
+  navigation/       App navigation
+  screens/          Main app screens
+  utils/            Formatting and chain helpers
+```
+
+Important screens:
+
+```txt
+src/screens/WalletsScreen.tsx
+src/screens/WalletDetailScreen.tsx
+src/screens/TokensScreen.tsx
+src/screens/PositionsScreen.tsx
+src/screens/EventsScreen.tsx
+src/screens/ActivityScreen.tsx
+src/screens/NotificationHistoryScreen.tsx
+src/screens/SettingsScreen.tsx
+```
+
+## Backend
+
+This frontend is designed to work with a separate backend service.
+
+The backend is responsible for:
+
+* Wallet management
+* Holdings aggregation
+* Portfolio summary
+* DeFi positions
+* Wallet events
+* Webhook processing
+* Notification delivery history
+
+Make sure the backend server is running before using the app.
+
+## Getting Started
+
+### 1. Install dependencies
+
+```bash
+npm install
+```
+
+### 2. Start Metro
+
+```bash
 npm start
-
-# OR using Yarn
-yarn start
 ```
 
-## Step 2: Build and run your app
+### 3. Run on Android
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+In a second terminal:
 
-### Android
-
-```sh
-# Using npm
+```bash
 npm run android
-
-# OR using Yarn
-yarn android
 ```
 
-### iOS
+### 4. Run on iOS
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+Install CocoaPods dependencies first:
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
-bundle install
+```bash
+cd ios
+pod install
+cd ..
 ```
 
-Then, and every time you update your native dependencies, run:
+Then run:
 
-```sh
-bundle exec pod install
-```
-
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
-
-```sh
-# Using npm
+```bash
 npm run ios
-
-# OR using Yarn
-yarn ios
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+## Environment / API Configuration
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+The app expects a backend API URL to be configured in the frontend API layer.
 
-## Step 3: Modify your app
+Check the API files under:
 
-Now that you have successfully run the app, let's make changes!
+```txt
+src/api/
+```
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+Update the backend base URL according to your local development setup.
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+Example local backend:
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+```txt
+http://localhost:3000
+```
 
-## Congratulations! :tada:
+For Android emulator, you may need to use:
 
-You've successfully run and modified your React Native App. :partying_face:
+```txt
+http://10.0.2.2:3000
+```
 
-### Now what?
+instead of `localhost`.
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
+## Main Screens
 
-# Troubleshooting
+### Wallets
 
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+Shows followed wallets and their portfolio summary.
 
-# Learn More
+### Wallet Detail
 
-To learn more about React Native, take a look at the following resources:
+Displays the selected wallet’s overview, network filter, and tabs for:
 
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+* Tokens
+* History
+* Positions
+
+### Tokens
+
+Shows direct wallet holdings, grouped into:
+
+* Main tokens
+* Low-value tokens
+* Suspicious tokens
+
+Suspicious tokens are separated from the main portfolio view to reduce noise and avoid misleading balances.
+
+### Positions
+
+Shows DeFi, staking, lending, and protocol-related positions when available.
+
+### History
+
+Shows wallet-specific transaction history with date separators and event cards.
+
+### Activity
+
+Shows recent activity across followed wallets.
+
+### Notification History
+
+Shows wallet alerts that were sent to the user’s device.
+
+## Development Notes
+
+This app is currently focused on:
+
+* Clean mobile UX
+* Multi-chain wallet tracking
+* Fast portfolio display
+* Graceful degraded states
+* Suspicious token handling
+* Live wallet activity support through the backend
+
+Some data can appear as partial or temporarily unavailable depending on provider availability, rate limits, or network response times.
+
+## Scripts
+
+```bash
+npm start
+```
+
+Starts Metro.
+
+```bash
+npm run android
+```
+
+Builds and runs the Android app.
+
+```bash
+npm run ios
+```
+
+Builds and runs the iOS app.
+
+```bash
+npx tsc --noEmit
+```
+
+Runs TypeScript checks.
+
+## Status
+
+This project is under active development.
+
+Current focus areas include:
+
+* Improving wallet activity reliability
+* Better cached portfolio experience
+* More efficient token metadata handling
+* Additional network support
+* Push notification improvements
+
+## License
+
+This project is currently private / experimental.
+Add a license before publishing for production or open-source use.
