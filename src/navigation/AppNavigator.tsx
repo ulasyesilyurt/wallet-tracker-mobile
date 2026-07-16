@@ -8,13 +8,20 @@ import {FollowingScreen} from '../screens/FollowingScreen';
 import {AddWalletScreen} from '../screens/AddWalletScreen';
 import {WalletDetailScreen, type DetailTab} from '../screens/WalletDetailScreen';
 import {WalletEditScreen} from '../screens/WalletEditScreen';
+import {WalletAlertSettingsScreen} from '../screens/WalletAlertSettingsScreen';
 import {ActivityScreen} from '../screens/ActivityScreen';
 import {NotificationHistoryScreen} from '../screens/NotificationHistoryScreen';
 import {SettingsScreen} from '../screens/SettingsScreen';
 import {colors} from '../theme/colors';
 import type {Wallet} from '../types/wallet';
 
-type Route = 'tabs' | 'detail' | 'edit' | 'add' | 'notifications';
+type Route =
+  | 'tabs'
+  | 'detail'
+  | 'edit'
+  | 'alertSettings'
+  | 'add'
+  | 'notifications';
 type TabId = 'wallets' | 'activity' | 'settings';
 
 function extractWalletId(message: FirebaseMessagingTypes.RemoteMessage | null): string | null {
@@ -150,6 +157,7 @@ export function AppNavigator() {
       <WalletEditScreen
         wallet={selectedWallet}
         onBack={() => setRoute('detail')}
+        onOpenAlertSettings={() => setRoute('alertSettings')}
         onSaved={updatedWallet => {
           setSelectedWallet(updatedWallet);
           setFollowingRefreshKey(current => current + 1);
@@ -162,6 +170,15 @@ export function AppNavigator() {
           setActiveTab('wallets');
           setRoute('tabs');
         }}
+      />
+    );
+  }
+
+  if (route === 'alertSettings' && selectedWallet) {
+    return (
+      <WalletAlertSettingsScreen
+        wallet={selectedWallet}
+        onBack={() => setRoute('edit')}
       />
     );
   }

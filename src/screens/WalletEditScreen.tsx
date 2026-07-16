@@ -23,6 +23,7 @@ import {
 type WalletEditScreenProps = {
   wallet: Wallet;
   onBack: () => void;
+  onOpenAlertSettings: () => void;
   onSaved: (wallet: Wallet) => void;
   onDeleted: (walletId: string) => void;
 };
@@ -40,7 +41,13 @@ const TRACK_TYPE_OPTIONS: TrackTypeOption[] = [
 
 const EVM_ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;
 
-export function WalletEditScreen({wallet, onBack, onSaved, onDeleted}: WalletEditScreenProps) {
+export function WalletEditScreen({
+  wallet,
+  onBack,
+  onOpenAlertSettings,
+  onSaved,
+  onDeleted,
+}: WalletEditScreenProps) {
   const [address, setAddress] = useState(wallet.address);
   const [label, setLabel] = useState(wallet.label ?? '');
   const [selectedChains, setSelectedChains] = useState<string[]>(
@@ -266,6 +273,25 @@ export function WalletEditScreen({wallet, onBack, onSaved, onDeleted}: WalletEdi
           })}
         </View>
 
+        <View style={styles.section}>
+          <Text style={styles.label}>Alerts</Text>
+          <Pressable
+            style={[
+              styles.alertSettingsRow,
+              (saving || deleting) ? styles.alertSettingsRowDisabled : null,
+            ]}
+            onPress={onOpenAlertSettings}
+            disabled={saving || deleting}>
+            <View style={styles.alertSettingsTextBlock}>
+              <Text style={styles.alertSettingsTitle}>Alert settings</Text>
+              <Text style={styles.alertSettingsDescription}>
+                Minimum USD threshold, notifications, and NFT alerts
+              </Text>
+            </View>
+            <Text style={styles.alertSettingsChevron}>›</Text>
+          </Pressable>
+        </View>
+
         <View style={styles.dangerSection}>
           <Text style={styles.dangerTitle}>Danger zone</Text>
           <Text style={styles.dangerBody}>
@@ -413,6 +439,40 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.textPrimary,
     fontWeight: '600',
+  },
+  alertSettingsRow: {
+    backgroundColor: colors.elevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  alertSettingsRowDisabled: {
+    opacity: 0.6,
+  },
+  alertSettingsTextBlock: {
+    flex: 1,
+  },
+  alertSettingsTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  alertSettingsDescription: {
+    marginTop: 4,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textSecondary,
+  },
+  alertSettingsChevron: {
+    fontSize: 22,
+    lineHeight: 22,
+    color: colors.textTertiary,
   },
   saveButton: {
     backgroundColor: colors.primaryCtaFill,
