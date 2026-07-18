@@ -227,7 +227,7 @@ export function WalletAlertSettingsScreen({
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Minimum alert</Text>
+              <Text style={styles.sectionLabel}>Token &amp; native alerts</Text>
               <Text style={styles.inputLabel}>Minimum USD amount</Text>
               <TextInput
                 value={minimumAlertUsd}
@@ -250,7 +250,8 @@ export function WalletAlertSettingsScreen({
                 <Text style={styles.fieldErrorText}>{minimumAmountError}</Text>
               ) : (
                 <Text style={styles.helperText}>
-                  Use 0 to receive every matching alert.
+                  Only send token/native push alerts above this USD value. Use 0
+                  to receive every priced token/native alert.
                 </Text>
               )}
             </View>
@@ -261,7 +262,7 @@ export function WalletAlertSettingsScreen({
                 <View style={styles.rowTextBlock}>
                   <Text style={styles.rowTitle}>Notify NFT transfers</Text>
                   <Text style={styles.rowDescription}>
-                    Include NFT transfer activity in wallet alerts.
+                    NFT alerts do not use the USD threshold.
                   </Text>
                 </View>
                 <Switch
