@@ -3,6 +3,9 @@ import { apiRequest } from './client';
 export type WalletAlertSettings = {
   minimumAlertUsd: number;
   notificationsEnabled: boolean;
+  notifyFungibleTransfers: boolean;
+  notifyIncomingTransfers: boolean;
+  notifyOutgoingTransfers: boolean;
   notifyNftTransfers: boolean;
 };
 

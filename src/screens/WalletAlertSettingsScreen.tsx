@@ -58,6 +58,9 @@ export function WalletAlertSettingsScreen({
 }: WalletAlertSettingsScreenProps) {
   const [minimumAlertUsd, setMinimumAlertUsd] = useState('');
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [notifyFungibleTransfers, setNotifyFungibleTransfers] = useState(false);
+  const [notifyIncomingTransfers, setNotifyIncomingTransfers] = useState(false);
+  const [notifyOutgoingTransfers, setNotifyOutgoingTransfers] = useState(false);
   const [notifyNftTransfers, setNotifyNftTransfers] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -84,6 +87,9 @@ export function WalletAlertSettingsScreen({
 
       setMinimumAlertUsd(String(settings.minimumAlertUsd));
       setNotificationsEnabled(settings.notificationsEnabled);
+      setNotifyFungibleTransfers(settings.notifyFungibleTransfers);
+      setNotifyIncomingTransfers(settings.notifyIncomingTransfers);
+      setNotifyOutgoingTransfers(settings.notifyOutgoingTransfers);
       setNotifyNftTransfers(settings.notifyNftTransfers);
       setMinimumAmountError(null);
       setSaveError(null);
@@ -125,11 +131,13 @@ export function WalletAlertSettingsScreen({
 
     const validation = validateMinimumAmount(minimumAlertUsd);
 
-    if (validation.error !== null) {
+    if (notifyFungibleTransfers && validation.error !== null) {
       setMinimumAmountError(validation.error);
       setSuccessMessage(null);
       return;
     }
+
+    const minimumAlertUsdValue = validation.value ?? 0;
 
     setSaving(true);
     setMinimumAmountError(null);
@@ -138,13 +146,19 @@ export function WalletAlertSettingsScreen({
 
     try {
       const settings = await updateWalletAlertSettings(wallet.id, {
-        minimumAlertUsd: validation.value,
+        minimumAlertUsd: minimumAlertUsdValue,
         notificationsEnabled,
+        notifyFungibleTransfers,
+        notifyIncomingTransfers,
+        notifyOutgoingTransfers,
         notifyNftTransfers,
       });
 
       setMinimumAlertUsd(String(settings.minimumAlertUsd));
       setNotificationsEnabled(settings.notificationsEnabled);
+      setNotifyFungibleTransfers(settings.notifyFungibleTransfers);
+      setNotifyIncomingTransfers(settings.notifyIncomingTransfers);
+      setNotifyOutgoingTransfers(settings.notifyOutgoingTransfers);
       setNotifyNftTransfers(settings.notifyNftTransfers);
       setSuccessMessage('Alert settings saved');
     } catch (error) {
@@ -161,6 +175,9 @@ export function WalletAlertSettingsScreen({
   const subtitle = `${wallet.label || 'Unnamed wallet'} · ${shortenAddress(
     wallet.address,
   )}`;
+  const alertControlsDisabled = saving || !notificationsEnabled;
+  const fungibleControlsDisabled =
+    alertControlsDisabled || !notifyFungibleTransfers;
 
   return (
     <View style={styles.screen}>
@@ -226,37 +243,124 @@ export function WalletAlertSettingsScreen({
               </View>
             </View>
 
-            <View style={styles.section}>
+            <View
+              style={[
+                styles.section,
+                !notificationsEnabled ? styles.sectionDisabled : null,
+              ]}
+            >
               <Text style={styles.sectionLabel}>Token &amp; native alerts</Text>
-              <Text style={styles.inputLabel}>Minimum USD amount</Text>
-              <TextInput
-                value={minimumAlertUsd}
-                onChangeText={value => {
-                  setMinimumAlertUsd(value);
-                  setMinimumAmountError(null);
-                  clearSaveFeedback();
-                }}
-                keyboardType="decimal-pad"
-                autoCorrect={false}
-                placeholder="0.00"
-                placeholderTextColor={colors.textTertiary}
-                editable={!saving}
+              <View style={styles.switchRow}>
+                <View style={styles.rowTextBlock}>
+                  <Text style={styles.rowTitle}>
+                    Notify token/native transfers
+                  </Text>
+                  <Text style={styles.rowDescription}>
+                    Include fungible token and native asset transfers.
+                  </Text>
+                </View>
+                <Switch
+                  value={notifyFungibleTransfers}
+                  onValueChange={value => {
+                    setNotifyFungibleTransfers(value);
+                    setMinimumAmountError(null);
+                    clearSaveFeedback();
+                  }}
+                  disabled={alertControlsDisabled}
+                  trackColor={{ false: colors.border, true: colors.accent }}
+                  thumbColor={
+                    notifyFungibleTransfers
+                      ? colors.primaryCtaFill
+                      : colors.textSecondary
+                  }
+                />
+              </View>
+
+              <View
                 style={[
-                  styles.input,
-                  minimumAmountError ? styles.inputError : null,
+                  styles.fungibleDetailControls,
+                  notificationsEnabled && !notifyFungibleTransfers
+                    ? styles.controlsDisabled
+                    : null,
                 ]}
-              />
-              {minimumAmountError ? (
-                <Text style={styles.fieldErrorText}>{minimumAmountError}</Text>
-              ) : (
-                <Text style={styles.helperText}>
-                  Only send token/native push alerts above this USD value. Use 0
-                  to receive every priced token/native alert.
-                </Text>
-              )}
+              >
+                <View style={styles.switchRow}>
+                  <Text style={styles.rowTitle}>Incoming transfers</Text>
+                  <Switch
+                    value={notifyIncomingTransfers}
+                    onValueChange={value => {
+                      setNotifyIncomingTransfers(value);
+                      clearSaveFeedback();
+                    }}
+                    disabled={fungibleControlsDisabled}
+                    trackColor={{ false: colors.border, true: colors.accent }}
+                    thumbColor={
+                      notifyIncomingTransfers
+                        ? colors.primaryCtaFill
+                        : colors.textSecondary
+                    }
+                  />
+                </View>
+
+                <View style={styles.controlDivider} />
+
+                <View style={styles.switchRow}>
+                  <Text style={styles.rowTitle}>Outgoing transfers</Text>
+                  <Switch
+                    value={notifyOutgoingTransfers}
+                    onValueChange={value => {
+                      setNotifyOutgoingTransfers(value);
+                      clearSaveFeedback();
+                    }}
+                    disabled={fungibleControlsDisabled}
+                    trackColor={{ false: colors.border, true: colors.accent }}
+                    thumbColor={
+                      notifyOutgoingTransfers
+                        ? colors.primaryCtaFill
+                        : colors.textSecondary
+                    }
+                  />
+                </View>
+
+                <View style={styles.controlDivider} />
+
+                <Text style={styles.inputLabel}>Minimum USD amount</Text>
+                <TextInput
+                  value={minimumAlertUsd}
+                  onChangeText={value => {
+                    setMinimumAlertUsd(value);
+                    setMinimumAmountError(null);
+                    clearSaveFeedback();
+                  }}
+                  keyboardType="decimal-pad"
+                  autoCorrect={false}
+                  placeholder="0.00"
+                  placeholderTextColor={colors.textTertiary}
+                  editable={!fungibleControlsDisabled}
+                  style={[
+                    styles.input,
+                    minimumAmountError ? styles.inputError : null,
+                  ]}
+                />
+                {minimumAmountError ? (
+                  <Text style={styles.fieldErrorText}>
+                    {minimumAmountError}
+                  </Text>
+                ) : (
+                  <Text style={styles.helperText}>
+                    Only send token/native push alerts above this USD value. Use
+                    0 to receive every priced token/native alert.
+                  </Text>
+                )}
+              </View>
             </View>
 
-            <View style={styles.section}>
+            <View
+              style={[
+                styles.section,
+                !notificationsEnabled ? styles.sectionDisabled : null,
+              ]}
+            >
               <Text style={styles.sectionLabel}>NFT alerts</Text>
               <View style={styles.switchRow}>
                 <View style={styles.rowTextBlock}>
@@ -271,7 +375,7 @@ export function WalletAlertSettingsScreen({
                     setNotifyNftTransfers(value);
                     clearSaveFeedback();
                   }}
-                  disabled={saving}
+                  disabled={alertControlsDisabled}
                   trackColor={{ false: colors.border, true: colors.accent }}
                   thumbColor={
                     notifyNftTransfers
@@ -364,6 +468,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     marginBottom: 14,
   },
+  sectionDisabled: {
+    opacity: 0.5,
+  },
   sectionLabel: {
     marginBottom: 12,
     fontSize: 12,
@@ -377,6 +484,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 16,
+  },
+  fungibleDetailControls: {
+    marginTop: 14,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  controlsDisabled: {
+    opacity: 0.5,
+  },
+  controlDivider: {
+    height: 1,
+    marginVertical: 12,
+    backgroundColor: colors.border,
   },
   rowTextBlock: {
     flex: 1,
