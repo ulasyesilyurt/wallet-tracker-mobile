@@ -4,7 +4,11 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import {Linking, Pressable, StyleSheet, Text, View} from 'react-native';
 import type {WalletEvent} from '../api/events';
 import {colors} from '../theme/colors';
-import {formatActivityAmount, shortenAddress} from '../utils/format';
+import {
+  formatActivityAmount,
+  formatEventUsdValue,
+  shortenAddress,
+} from '../utils/format';
 import {
   formatChainDisplayName,
   getChainBadgeTheme,
@@ -52,6 +56,12 @@ export function EventCard({event}: EventCardProps) {
     event.assetSymbol,
     event.assetName ?? null,
   );
+  const usdValueLabel = formatEventUsdValue({
+    usdValue: event.usdValue,
+    usdValueStatus: event.usdValueStatus,
+    eventType: event.eventType,
+    assetType: event.assetType,
+  });
   const directionLabel =
     event.direction === 'incoming'
       ? 'Received'
@@ -142,6 +152,11 @@ export function EventCard({event}: EventCardProps) {
             <Text style={styles.amountLine} numberOfLines={1}>
               {amountLabel}
             </Text>
+            {usdValueLabel ? (
+              <Text style={styles.usdValueLine} numberOfLines={1}>
+                {usdValueLabel}
+              </Text>
+            ) : null}
             <View style={styles.metaRow}>
               <Text style={styles.directionLine}>{directionLabel}</Text>
               <Text style={styles.dot}>•</Text>
@@ -269,6 +284,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
     color: colors.textPrimary,
+  },
+  usdValueLine: {
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
   },
   metaRow: {
     marginTop: 3,

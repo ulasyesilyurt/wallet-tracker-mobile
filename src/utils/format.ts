@@ -70,6 +70,52 @@ export function formatUsd(value: number | null | undefined, fallback = 'Unavaila
   }).format(value);
 }
 
+type EventUsdValueInput = {
+  usdValue?: number | string | null;
+  usdValueStatus?: string | null;
+  eventType?: string | null;
+  assetType?: string | null;
+};
+
+function isNftEvent(eventType?: string | null, assetType?: string | null) {
+  const normalizedEventType = (eventType ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const normalizedAssetType = (assetType ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const nftClassifiers = ['nft', 'erc721', 'erc1155'];
+
+  return nftClassifiers.some(classifier => {
+    return normalizedEventType.includes(classifier) || normalizedAssetType.includes(classifier);
+  });
+}
+
+export function formatEventUsdValue({
+  usdValue,
+  usdValueStatus,
+  eventType,
+  assetType,
+}: EventUsdValueInput) {
+  if (
+    typeof usdValueStatus !== 'string' ||
+    !usdValueStatus.startsWith('priced_') ||
+    isNftEvent(eventType, assetType) ||
+    usdValue == null ||
+    (typeof usdValue === 'string' && usdValue.trim().length === 0)
+  ) {
+    return null;
+  }
+
+  const numericValue = typeof usdValue === 'number' ? usdValue : Number(usdValue);
+
+  if (!Number.isFinite(numericValue) || numericValue <= 0) {
+    return null;
+  }
+
+  if (numericValue < 0.01) {
+    return '≈ <$0.01';
+  }
+
+  return `≈ ${formatUsd(numericValue)}`;
+}
+
 export function formatUsdCompact(value: number | null | undefined) {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
     return null;

@@ -12,6 +12,10 @@ export type WalletEvent = {
   assetSymbol: string | null;
   assetName?: string | null;
   amount: string | null;
+  usdValue?: number | string | null;
+  usdValueStatus?: string | null;
+  usdValueSource?: string | null;
+  usdValueCalculatedAt?: string | null;
   direction: string | null;
   occurredAt: string;
   createdAt?: string;
