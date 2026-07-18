@@ -244,6 +244,33 @@ The existing Jest smoke test is also not run in CI yet. Its current configuratio
 cannot transform the ESM build imported by React Native Firebase Messaging, so
 the suite fails during module loading before any test executes.
 
+## Android Crash Reporting
+
+Firebase Crashlytics is enabled on Android release builds for closed-beta crash
+diagnostics. Debug collection remains disabled, and iOS Crashlytics is not
+configured or autolinked yet. Firebase Analytics is not included.
+
+Crash reports must never include auth tokens, FCM tokens, email addresses,
+wallet addresses, or transaction hashes. Do not pass these values to
+Crashlytics logs, custom keys, user IDs, or recorded errors. This initial setup
+does not add any custom Crashlytics logs, keys, or user identifiers.
+
+To verify Crashlytics without leaving a test control in the app:
+
+1. Make temporary, uncommitted local changes only: set
+   `crashlytics_debug_enabled` to `true` in `firebase.json`, import
+   `getCrashlytics` and `crash` from `@react-native-firebase/crashlytics`, and
+   call `crash(getCrashlytics())` from a temporary test action.
+2. Build and open the Android app, invoke the temporary test action, and confirm
+   that the app terminates.
+3. Remove the temporary crash code, restore
+   `crashlytics_debug_enabled` to `false`, rebuild, and reopen the app so the
+   queued report can be uploaded.
+4. Confirm the test issue appears in Firebase Console under Crashlytics. Initial
+   reports can take several minutes to appear.
+5. Before committing, verify `git diff` contains no test crash code and
+   `firebase.json` still has debug collection disabled.
+
 ## Status
 
 This project is under active development.
