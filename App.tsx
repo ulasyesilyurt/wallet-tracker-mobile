@@ -1,6 +1,7 @@
 import React, {useEffect} from 'react';
 import {PermissionsAndroid, Platform, SafeAreaView, StatusBar, StyleSheet} from 'react-native';
 import messaging from '@react-native-firebase/messaging';
+import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {AuthProvider} from './src/auth/AuthContext';
 import {RootNavigator} from './src/navigation/RootNavigator';
 import {PushRegistrationManager} from './src/notifications/PushRegistrationManager';
@@ -31,17 +32,19 @@ export default function App() {
         console.log('[notifications] registerDeviceForRemoteMessages failed', error);
       });
 
-    void requestAndroidNotificationPermission();
+    requestAndroidNotificationPermission();
   }, []);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
-      <AuthProvider>
-        <PushRegistrationManager />
-        <RootNavigator />
-      </AuthProvider>
-    </SafeAreaView>
+    <SafeAreaProvider>
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor={colors.background} />
+        <AuthProvider>
+          <PushRegistrationManager />
+          <RootNavigator />
+        </AuthProvider>
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 
