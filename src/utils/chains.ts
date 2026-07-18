@@ -12,6 +12,19 @@ const CHAIN_TRANSACTION_EXPLORER_BASE_URLS: Record<string, string> = {
   'base-mainnet': 'https://basescan.org/tx/',
 };
 
+const CHAIN_DEXSCREENER_SLUGS: Record<string, string> = {
+  'ethereum-mainnet': 'ethereum',
+  'base-mainnet': 'base',
+};
+
+const CHAIN_OPENSEA_SLUGS: Record<string, string> = {
+  'ethereum-mainnet': 'ethereum',
+  'base-mainnet': 'base',
+};
+
+const EVM_ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;
+const TRANSACTION_HASH_PATTERN = /^0x[a-fA-F0-9]{64}$/;
+
 const CANONICAL_PROTECTED_TOKEN_ADDRESSES_BY_CHAIN: Record<string, string[]> = {
   'ethereum-mainnet': [
     '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',
@@ -86,7 +99,7 @@ export function getTransactionExplorerUrl(
     typeof chainId !== 'string' ||
     chainId.length === 0 ||
     typeof transactionHash !== 'string' ||
-    transactionHash.length === 0
+    !isValidTransactionHash(transactionHash)
   ) {
     return null;
   }
@@ -98,6 +111,55 @@ export function getTransactionExplorerUrl(
   }
 
   return `${baseUrl}${transactionHash}`;
+}
+
+export function isValidEvmAddress(value: string | null | undefined): value is string {
+  return typeof value === 'string' && EVM_ADDRESS_PATTERN.test(value);
+}
+
+export function isValidTransactionHash(value: string | null | undefined): value is string {
+  return typeof value === 'string' && TRANSACTION_HASH_PATTERN.test(value);
+}
+
+export function getDexscreenerTokenUrl(
+  chainId: string | null | undefined,
+  assetContractAddress: string | null | undefined,
+): string | null {
+  if (!isValidEvmAddress(assetContractAddress)) {
+    return null;
+  }
+
+  const chainSlug = chainId ? CHAIN_DEXSCREENER_SLUGS[chainId] : null;
+
+  if (!chainSlug) {
+    return null;
+  }
+
+  return `https://dexscreener.com/${chainSlug}/${assetContractAddress}`;
+}
+
+export function getOpenSeaItemUrl(
+  chainId: string | null | undefined,
+  assetContractAddress: string | null | undefined,
+  assetTokenId: string | null | undefined,
+): string | null {
+  if (
+    !isValidEvmAddress(assetContractAddress) ||
+    typeof assetTokenId !== 'string' ||
+    assetTokenId.trim().length === 0
+  ) {
+    return null;
+  }
+
+  const chainSlug = chainId ? CHAIN_OPENSEA_SLUGS[chainId] : null;
+
+  if (!chainSlug) {
+    return null;
+  }
+
+  return `https://opensea.io/item/${chainSlug}/${assetContractAddress}/${encodeURIComponent(
+    assetTokenId.trim(),
+  )}`;
 }
 
 export function isCanonicalProtectedTokenAddress(

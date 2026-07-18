@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import {getWalletEvents, type WalletEvent} from '../api/events';
 import {EventCard} from '../components/EventCard';
+import {EventDetailModal} from '../components/EventDetailModal';
 import {colors} from '../theme/colors';
 import {formatEventDayLabel, getEventDayKey} from '../utils/format';
 
@@ -62,8 +63,9 @@ export function EventsScreen({walletId, selectedChainId = null}: EventsScreenPro
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<WalletEvent | null>(null);
 
-  async function loadEvents(isRefresh = false) {
+  const loadEvents = useCallback(async (isRefresh = false) => {
     if (isRefresh) {
       setRefreshing(true);
     } else {
@@ -80,11 +82,11 @@ export function EventsScreen({walletId, selectedChainId = null}: EventsScreenPro
       setLoading(false);
       setRefreshing(false);
     }
-  }
+  }, [walletId]);
 
   useEffect(() => {
-    void loadEvents();
-  }, [walletId]);
+    loadEvents();
+  }, [loadEvents]);
 
   if (loading) {
     return (
@@ -100,7 +102,11 @@ export function EventsScreen({walletId, selectedChainId = null}: EventsScreenPro
       <View style={styles.centerState}>
         <Text style={styles.errorTitle}>Could not load history</Text>
         <Text style={styles.errorText}>{error}</Text>
-        <Pressable onPress={() => void loadEvents()} style={styles.retryButton}>
+        <Pressable
+          onPress={() => {
+            loadEvents();
+          }}
+          style={styles.retryButton}>
           <Text style={styles.retryButtonText}>Try again</Text>
         </Pressable>
       </View>
@@ -121,26 +127,35 @@ export function EventsScreen({walletId, selectedChainId = null}: EventsScreenPro
       );
     }
 
-    return <EventCard event={item.event} />;
+    return <EventCard event={item.event} onPress={() => setSelectedEvent(item.event)} />;
   };
 
   return (
-    <FlatList
-      data={listItems}
-      keyExtractor={item => item.key}
-      contentContainerStyle={filteredEvents.length === 0 ? styles.emptyListContent : styles.listContent}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={() => void loadEvents(true)} tintColor={colors.accent} />
-      }
-      renderItem={renderItem}
-      ListEmptyComponent={
-        <View style={styles.centerState}>
-          <Text style={styles.emptyTitle}>No history yet</Text>
-          <Text style={styles.stateText}>Wallet activity will appear here once events are available.</Text>
-        </View>
-      }
-      showsVerticalScrollIndicator={false}
-    />
+    <>
+      <FlatList
+        data={listItems}
+        keyExtractor={item => item.key}
+        contentContainerStyle={filteredEvents.length === 0 ? styles.emptyListContent : styles.listContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              loadEvents(true);
+            }}
+            tintColor={colors.accent}
+          />
+        }
+        renderItem={renderItem}
+        ListEmptyComponent={
+          <View style={styles.centerState}>
+            <Text style={styles.emptyTitle}>No history yet</Text>
+            <Text style={styles.stateText}>Wallet activity will appear here once events are available.</Text>
+          </View>
+        }
+        showsVerticalScrollIndicator={false}
+      />
+      <EventDetailModal event={selectedEvent} onClose={() => setSelectedEvent(null)} />
+    </>
   );
 }
 

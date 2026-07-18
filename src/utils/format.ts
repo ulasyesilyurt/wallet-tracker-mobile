@@ -77,7 +77,7 @@ type EventUsdValueInput = {
   assetType?: string | null;
 };
 
-function isNftEvent(eventType?: string | null, assetType?: string | null) {
+export function isNftEvent(eventType?: string | null, assetType?: string | null) {
   const normalizedEventType = (eventType ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
   const normalizedAssetType = (assetType ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
   const nftClassifiers = ['nft', 'erc721', 'erc1155'];
@@ -85,6 +85,54 @@ function isNftEvent(eventType?: string | null, assetType?: string | null) {
   return nftClassifiers.some(classifier => {
     return normalizedEventType.includes(classifier) || normalizedAssetType.includes(classifier);
   });
+}
+
+export function isFungibleTokenEvent(
+  eventType?: string | null,
+  assetType?: string | null,
+) {
+  if (isNftEvent(eventType, assetType)) {
+    return false;
+  }
+
+  const normalizedEventType = (eventType ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const normalizedAssetType = (assetType ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  return (
+    normalizedEventType.includes('tokentransfer') ||
+    normalizedEventType.includes('erc20transfer') ||
+    normalizedAssetType.includes('erc20') ||
+    normalizedAssetType.includes('fungible') ||
+    normalizedAssetType === 'token'
+  );
+}
+
+export function getEventDetailTitle({
+  eventType,
+  assetType,
+  direction,
+}: {
+  eventType?: string | null;
+  assetType?: string | null;
+  direction?: string | null;
+}) {
+  if (isNftEvent(eventType, assetType)) {
+    return 'NFT Transfer';
+  }
+
+  if (direction === 'outgoing') {
+    return 'Send';
+  }
+
+  if (direction === 'incoming') {
+    return 'Receive';
+  }
+
+  if (isFungibleTokenEvent(eventType, assetType)) {
+    return 'Token Transfer';
+  }
+
+  return 'Activity';
 }
 
 export function formatEventUsdValue({
@@ -233,4 +281,34 @@ export function formatActivityAmount(value: string | null, assetSymbol: string |
   }
 
   return label ? formattedAmount + ' ' + label : formattedAmount;
+}
+
+export function formatSignedEventAmount(
+  value: string | null,
+  assetSymbol: string | null,
+  assetName: string | null,
+  direction: string | null,
+) {
+  if (value == null || value.trim().length === 0) {
+    return formatActivityAmount(value, assetSymbol, assetName);
+  }
+
+  const normalized = value.trim();
+
+  if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(normalized)) {
+    return formatActivityAmount(normalized, assetSymbol, assetName);
+  }
+
+  const unsignedValue = normalized.replace(/^[+-]/, '');
+  const amountLabel = formatActivityAmount(unsignedValue, assetSymbol, assetName);
+
+  if (direction === 'incoming') {
+    return `+${amountLabel}`;
+  }
+
+  if (direction === 'outgoing') {
+    return `−${amountLabel}`;
+  }
+
+  return normalized.startsWith('-') ? `−${amountLabel}` : amountLabel;
 }

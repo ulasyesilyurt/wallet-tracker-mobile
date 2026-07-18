@@ -1,7 +1,14 @@
 import React, {useEffect, useRef, useState} from 'react';
 import Clipboard from '@react-native-clipboard/clipboard';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import {Linking, Pressable, StyleSheet, Text, View} from 'react-native';
+import {
+  type GestureResponderEvent,
+  Linking,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import type {WalletEvent} from '../api/events';
 import {colors} from '../theme/colors';
 import {
@@ -17,6 +24,7 @@ import {
 
 type EventCardProps = {
   event: WalletEvent;
+  onPress?: () => void;
 };
 
 function formatOccurredAt(value: string) {
@@ -40,7 +48,11 @@ function formatEventType(value: string) {
     .replace(/\b\w/g, character => character.toUpperCase());
 }
 
-function previewHash(value: string) {
+function previewHash(value: string | null | undefined) {
+  if (!value) {
+    return '';
+  }
+
   if (value.length < 12) {
     return value;
   }
@@ -48,7 +60,7 @@ function previewHash(value: string) {
   return value.slice(0, 8) + '...' + value.slice(-4);
 }
 
-export function EventCard({event}: EventCardProps) {
+export function EventCard({event, onPress}: EventCardProps) {
   const [copied, setCopied] = useState(false);
   const copyResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const amountLabel = formatActivityAmount(
@@ -97,24 +109,23 @@ export function EventCard({event}: EventCardProps) {
     event.transactionHash,
   );
 
-  async function handleOpenTransaction() {
+  async function handleOpenTransaction(pressEvent: GestureResponderEvent) {
+    pressEvent.stopPropagation();
+
     if (!transactionExplorerUrl) {
       return;
     }
 
     try {
       await Linking.openURL(transactionExplorerUrl);
-    } catch (error) {
-      console.log('[event-card] failed to open transaction explorer', {
-        chainId: event.chainId,
-        transactionHash: event.transactionHash,
-        transactionExplorerUrl,
-        error,
-      });
+    } catch {
+      console.log('[event-card] failed to open transaction explorer');
     }
   }
 
-  function handleCopyCounterpartyAddress() {
+  function handleCopyCounterpartyAddress(pressEvent: GestureResponderEvent) {
+    pressEvent.stopPropagation();
+
     if (!counterpartyAddress) {
       return;
     }
@@ -141,7 +152,14 @@ export function EventCard({event}: EventCardProps) {
   }, []);
 
   return (
-    <View style={styles.card}>
+    <Pressable
+      accessibilityRole={onPress ? 'button' : undefined}
+      disabled={!onPress}
+      onPress={onPress}
+      style={({pressed}) => [
+        styles.card,
+        pressed && onPress ? styles.cardPressed : null,
+      ]}>
       <View style={styles.topRow}>
         <View style={styles.leftCluster}>
           <View style={styles.directionGlyphWrap}>
@@ -173,28 +191,30 @@ export function EventCard({event}: EventCardProps) {
               {walletLabel}
             </Text>
           ) : null}
-          <Pressable
-            onPress={handleOpenTransaction}
-            disabled={!transactionExplorerUrl}
-            hitSlop={6}
-            style={styles.hashPressable}>
-            <Text
-              style={[
-                styles.metaTimestamp,
-                transactionExplorerUrl ? styles.metaTimestampLink : null,
-              ]}
-              numberOfLines={1}>
-              {previewHash(event.transactionHash)}
-            </Text>
-            {transactionExplorerUrl ? (
-              <Ionicons
-                name="open-outline"
-                size={11}
-                color={colors.accent}
-                style={styles.hashLinkIcon}
-              />
-            ) : null}
-          </Pressable>
+          {event.transactionHash ? (
+            <Pressable
+              onPress={handleOpenTransaction}
+              disabled={!transactionExplorerUrl}
+              hitSlop={6}
+              style={styles.hashPressable}>
+              <Text
+                style={[
+                  styles.metaTimestamp,
+                  transactionExplorerUrl ? styles.metaTimestampLink : null,
+                ]}
+                numberOfLines={1}>
+                {previewHash(event.transactionHash)}
+              </Text>
+              {transactionExplorerUrl ? (
+                <Ionicons
+                  name="open-outline"
+                  size={11}
+                  color={colors.accent}
+                  style={styles.hashLinkIcon}
+                />
+              ) : null}
+            </Pressable>
+          ) : null}
         </View>
       </View>
 
@@ -237,7 +257,7 @@ export function EventCard({event}: EventCardProps) {
           </View>
         ) : null}
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -250,6 +270,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  cardPressed: {
+    opacity: 0.84,
   },
   topRow: {
     flexDirection: 'row',

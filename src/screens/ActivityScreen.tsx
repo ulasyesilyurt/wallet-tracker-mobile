@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import {getGlobalActivity} from '../api/activity';
 import {EventCard} from '../components/EventCard';
+import {EventDetailModal} from '../components/EventDetailModal';
 import {colors} from '../theme/colors';
 import type {WalletEvent} from '../api/events';
 import {formatEventDayLabel, getEventDayKey} from '../utils/format';
@@ -58,6 +59,7 @@ export function ActivityScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<WalletEvent | null>(null);
 
   async function loadActivity(isRefresh = false) {
     if (isRefresh) {
@@ -82,7 +84,7 @@ export function ActivityScreen() {
   }
 
   useEffect(() => {
-    void loadActivity();
+    loadActivity();
   }, []);
 
   if (loading) {
@@ -99,7 +101,11 @@ export function ActivityScreen() {
       <View style={styles.centerState}>
         <Text style={styles.errorTitle}>Could not load activity</Text>
         <Text style={styles.errorText}>{error}</Text>
-        <Pressable style={styles.retryButton} onPress={() => void loadActivity()}>
+        <Pressable
+          style={styles.retryButton}
+          onPress={() => {
+            loadActivity();
+          }}>
           <Text style={styles.retryButtonText}>Try again</Text>
         </Pressable>
       </View>
@@ -117,30 +123,35 @@ export function ActivityScreen() {
       );
     }
 
-    return <EventCard event={item.event} />;
+    return <EventCard event={item.event} onPress={() => setSelectedEvent(item.event)} />;
   };
 
   return (
-    <FlatList
-      data={listItems}
-      keyExtractor={item => item.key}
-      contentContainerStyle={events.length === 0 ? styles.emptyContent : styles.listContent}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={() => void loadActivity(true)}
-          tintColor={colors.accent}
-        />
-      }
-      renderItem={renderItem}
-      ListEmptyComponent={
-        <View style={styles.centerState}>
-          <Text style={styles.emptyTitle}>No activity yet</Text>
-          <Text style={styles.stateText}>Tracked wallet activity will appear here as new events arrive.</Text>
-        </View>
-      }
-      showsVerticalScrollIndicator={false}
-    />
+    <>
+      <FlatList
+        data={listItems}
+        keyExtractor={item => item.key}
+        contentContainerStyle={events.length === 0 ? styles.emptyContent : styles.listContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              loadActivity(true);
+            }}
+            tintColor={colors.accent}
+          />
+        }
+        renderItem={renderItem}
+        ListEmptyComponent={
+          <View style={styles.centerState}>
+            <Text style={styles.emptyTitle}>No activity yet</Text>
+            <Text style={styles.stateText}>Tracked wallet activity will appear here as new events arrive.</Text>
+          </View>
+        }
+        showsVerticalScrollIndicator={false}
+      />
+      <EventDetailModal event={selectedEvent} onClose={() => setSelectedEvent(null)} />
+    </>
   );
 }
 

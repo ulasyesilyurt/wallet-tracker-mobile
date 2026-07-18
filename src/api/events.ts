@@ -6,11 +6,15 @@ export type WalletEvent = {
   walletLabel?: string | null;
   walletAddress?: string | null;
   chainId: string;
-  transactionHash: string;
+  transactionHash?: string | null;
   eventType: string;
-  assetType?: string;
+  assetType?: string | null;
   assetSymbol: string | null;
   assetName?: string | null;
+  assetContractAddress?: string | null;
+  assetTokenId?: string | null;
+  assetImageUrl?: string | null;
+  assetDecimals?: number | null;
   amount: string | null;
   usdValue?: number | string | null;
   usdValueStatus?: string | null;
