@@ -1,4 +1,6 @@
 import React, {useEffect, useRef, useState} from 'react';
+import Clipboard from '@react-native-clipboard/clipboard';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import {ActivityIndicator, Pressable, StyleSheet, Text, View} from 'react-native';
 import {getWalletPerformance, type PortfolioPerformance} from '../api/performance';
 import {getWalletHoldings, type TokenHolding, type WalletHoldings} from '../api/holdings';
@@ -106,9 +108,33 @@ export function WalletDetailScreen({wallet, initialTab, onBack, onEdit}: WalletD
   const [positionsLoading, setPositionsLoading] = useState(false);
   const [holdingsPrefetchRequested, setHoldingsPrefetchRequested] = useState(false);
   const [positionsPrefetchRequested, setPositionsPrefetchRequested] = useState(false);
+  const [addressCopied, setAddressCopied] = useState(false);
   const latestRequestIdRef = useRef(0);
   const latestHoldingsRequestIdRef = useRef(0);
   const latestPositionsRequestIdRef = useRef(0);
+  const copyResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function handleCopyWalletAddress() {
+    Clipboard.setString(wallet.address);
+    setAddressCopied(true);
+
+    if (copyResetTimeoutRef.current) {
+      clearTimeout(copyResetTimeoutRef.current);
+    }
+
+    copyResetTimeoutRef.current = setTimeout(() => {
+      setAddressCopied(false);
+      copyResetTimeoutRef.current = null;
+    }, 1500);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (copyResetTimeoutRef.current) {
+        clearTimeout(copyResetTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const nextTab = initialTab ?? 'history';
@@ -414,9 +440,27 @@ export function WalletDetailScreen({wallet, initialTab, onBack, onEdit}: WalletD
         <View style={styles.identityRow}>
           <View style={styles.identityTextBlock}>
             <Text style={styles.title}>{wallet.label || 'Unnamed wallet'}</Text>
-            <Text style={styles.addressLine}>
-              {shortenAddress(wallet.address)} • {chainLabel}
-            </Text>
+            <View style={styles.addressRow}>
+              <Text numberOfLines={1} style={styles.addressLine}>
+                {shortenAddress(wallet.address)} • {chainLabel}
+              </Text>
+              <Pressable
+                accessibilityLabel={addressCopied ? 'Wallet address copied' : 'Copy wallet address'}
+                accessibilityRole="button"
+                hitSlop={6}
+                onPress={handleCopyWalletAddress}
+                style={({pressed}) => [
+                  styles.addressCopyButton,
+                  pressed ? styles.addressCopyButtonPressed : null,
+                ]}>
+                <Ionicons
+                  name={addressCopied ? 'checkmark-outline' : 'copy-outline'}
+                  size={13}
+                  color={addressCopied ? colors.positive : colors.textSecondary}
+                />
+                {addressCopied ? <Text style={styles.addressCopiedText}>Copied</Text> : null}
+              </Pressable>
+            </View>
           </View>
         </View>
 
@@ -647,9 +691,38 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   },
   addressLine: {
-    marginTop: 4,
+    flexShrink: 1,
     fontSize: 12,
     color: colors.textSecondary,
+  },
+  addressRow: {
+    marginTop: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  addressCopyButton: {
+    minWidth: 28,
+    height: 24,
+    paddingHorizontal: 6,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    backgroundColor: colors.elevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  addressCopyButtonPressed: {
+    opacity: 0.7,
+  },
+  addressCopiedText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: colors.positive,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
   portfolioInlineBlock: {
     marginTop: 8,
