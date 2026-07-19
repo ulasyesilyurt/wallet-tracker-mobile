@@ -1,4 +1,4 @@
-import React, {useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import messaging, {type FirebaseMessagingTypes} from '@react-native-firebase/messaging';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -14,6 +14,7 @@ import {NotificationHistoryScreen} from '../screens/NotificationHistoryScreen';
 import {SettingsScreen} from '../screens/SettingsScreen';
 import {colors} from '../theme/colors';
 import type {Wallet} from '../types/wallet';
+import {parseNotificationTarget} from '../notifications/notificationTarget';
 
 type Route =
   | 'tabs'
@@ -23,11 +24,10 @@ type Route =
   | 'add'
   | 'notifications';
 type TabId = 'wallets' | 'activity' | 'settings';
-
-function extractWalletId(message: FirebaseMessagingTypes.RemoteMessage | null): string | null {
-  const value = message?.data?.walletId;
-  return typeof value === 'string' ? value : null;
-}
+type NotificationEventTarget = {
+  eventId: string | null;
+  openKey: number;
+};
 
 export function AppNavigator() {
   const {logout} = useAuth();
@@ -35,22 +35,29 @@ export function AppNavigator() {
   const [activeTab, setActiveTab] = useState<TabId>('wallets');
   const [selectedWallet, setSelectedWallet] = useState<Wallet | null>(null);
   const [detailInitialTab, setDetailInitialTab] = useState<DetailTab | undefined>(undefined);
+  const [notificationEventTarget, setNotificationEventTarget] =
+    useState<NotificationEventTarget | null>(null);
   const [followingRefreshKey, setFollowingRefreshKey] = useState(0);
   const initialNotificationHandledRef = useRef(false);
+  const notificationOpenKeyRef = useRef(0);
+
+  const consumeNotificationEventTarget = useCallback((openKey: number) => {
+    setNotificationEventTarget(currentTarget =>
+      currentTarget?.openKey === openKey ? null : currentTarget,
+    );
+  }, []);
 
   useEffect(() => {
     async function openWalletFromNotification(
       message: FirebaseMessagingTypes.RemoteMessage | null,
       source: 'background' | 'initial',
     ) {
-      const walletId = extractWalletId(message);
+      const {walletId, walletEventId} = parseNotificationTarget(message?.data);
 
       console.log('[notifications] notification opened', {
         source,
-        walletId,
-        messageId: message?.messageId,
-        data: message?.data,
-        notification: message?.notification,
+        hasWalletId: walletId != null,
+        hasWalletEventId: walletEventId != null,
       });
 
       if (walletId == null) {
@@ -58,42 +65,45 @@ export function AppNavigator() {
         return;
       }
 
+      const openKey = notificationOpenKeyRef.current + 1;
+      notificationOpenKeyRef.current = openKey;
+      setNotificationEventTarget(null);
+
       try {
         const wallet = await getWalletById(walletId);
 
         console.log('[notifications] resolved wallet for notification', {
           source,
-          walletId,
           found: Boolean(wallet),
         });
 
-        if (wallet == null) {
+        if (wallet == null || notificationOpenKeyRef.current !== openKey) {
           return;
         }
 
         console.log('[notifications] opening wallet detail with History tab', {
           source,
-          walletId,
+          hasWalletEventId: walletEventId != null,
         });
 
         setActiveTab('wallets');
         setSelectedWallet(wallet);
         setDetailInitialTab('history');
+        setNotificationEventTarget({eventId: walletEventId, openKey});
         setRoute('detail');
-      } catch (error) {
+      } catch {
         console.log('[notifications] failed to resolve wallet for notification', {
           source,
-          walletId,
-          error,
         });
       }
     }
 
     const unsubscribeOnMessage = messaging().onMessage(remoteMessage => {
+      const target = parseNotificationTarget(remoteMessage.data);
+
       console.log('[notifications] foreground message received', {
-        messageId: remoteMessage.messageId,
-        data: remoteMessage.data,
-        notification: remoteMessage.notification,
+        hasWalletId: target.walletId != null,
+        hasWalletEventId: target.walletEventId != null,
       });
     });
 
@@ -107,10 +117,12 @@ export function AppNavigator() {
       messaging()
         .getInitialNotification()
         .then(remoteMessage => {
+          const target = parseNotificationTarget(remoteMessage?.data);
+
           console.log('[notifications] getInitialNotification resolved', {
             hasNotification: Boolean(remoteMessage),
-            messageId: remoteMessage?.messageId,
-            data: remoteMessage?.data,
+            hasWalletId: target.walletId != null,
+            hasWalletEventId: target.walletEventId != null,
           });
 
           if (remoteMessage) {
@@ -132,6 +144,7 @@ export function AppNavigator() {
     console.log('[auth] logout requested from app navigator');
     setSelectedWallet(null);
     setDetailInitialTab(undefined);
+    setNotificationEventTarget(null);
     setActiveTab('wallets');
     setRoute('tabs');
     await logout();
@@ -145,6 +158,7 @@ export function AppNavigator() {
           setFollowingRefreshKey(current => current + 1);
           setSelectedWallet(wallet);
           setDetailInitialTab(undefined);
+          setNotificationEventTarget(null);
           setActiveTab('wallets');
           setRoute('tabs');
         }}
@@ -166,6 +180,7 @@ export function AppNavigator() {
         onDeleted={() => {
           setSelectedWallet(null);
           setDetailInitialTab(undefined);
+          setNotificationEventTarget(null);
           setFollowingRefreshKey(current => current + 1);
           setActiveTab('wallets');
           setRoute('tabs');
@@ -188,9 +203,13 @@ export function AppNavigator() {
       <WalletDetailScreen
         wallet={selectedWallet}
         initialTab={detailInitialTab}
+        targetEventId={notificationEventTarget?.eventId}
+        targetOpenKey={notificationEventTarget?.openKey}
+        onTargetConsumed={consumeNotificationEventTarget}
         onBack={() => {
           setSelectedWallet(null);
           setDetailInitialTab(undefined);
+          setNotificationEventTarget(null);
           setActiveTab('wallets');
           setRoute('tabs');
         }}
@@ -213,6 +232,7 @@ export function AppNavigator() {
           setActiveTab('wallets');
           setSelectedWallet(wallet);
           setDetailInitialTab('history');
+          setNotificationEventTarget(null);
           setRoute('detail');
         }}
       />
@@ -229,6 +249,7 @@ export function AppNavigator() {
         onSelectWallet={wallet => {
           setSelectedWallet(wallet);
           setDetailInitialTab(undefined);
+          setNotificationEventTarget(null);
           setRoute('detail');
         }}
       />

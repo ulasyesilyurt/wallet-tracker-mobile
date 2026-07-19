@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -14,10 +14,17 @@ import {EventCard} from '../components/EventCard';
 import {EventDetailModal} from '../components/EventDetailModal';
 import {colors} from '../theme/colors';
 import {formatEventDayLabel, getEventDayKey} from '../utils/format';
+import {
+  resolveEventTarget,
+  shouldHandleOpenKey,
+} from '../notifications/notificationTarget';
 
 type EventsScreenProps = {
   walletId: string;
   selectedChainId?: string | null;
+  targetEventId?: string | null;
+  targetOpenKey?: number;
+  onTargetConsumed?: (openKey: number) => void;
 };
 
 type EventListItem =
@@ -58,14 +65,32 @@ function buildEventListItems(events: WalletEvent[]): EventListItem[] {
   return items;
 }
 
-export function EventsScreen({walletId, selectedChainId = null}: EventsScreenProps) {
+export function EventsScreen({
+  walletId,
+  selectedChainId = null,
+  targetEventId,
+  targetOpenKey,
+  onTargetConsumed,
+}: EventsScreenProps) {
   const [events, setEvents] = useState<WalletEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<WalletEvent | null>(null);
+  const [loadedTargetOpenKey, setLoadedTargetOpenKey] = useState<number | null>(null);
+  const handledTargetOpenKeyRef = useRef<number | null>(null);
+  const attemptedTargetOpenKeyRef = useRef<number | null>(null);
+  const initialTargetOpenKeyRef = useRef(targetOpenKey ?? null);
+  const latestRequestIdRef = useRef(0);
 
-  const loadEvents = useCallback(async (isRefresh = false) => {
+  const loadEvents = useCallback(async (
+    isRefresh = false,
+    requestTargetOpenKey: number | null = null,
+  ) => {
+    const requestId = latestRequestIdRef.current + 1;
+    latestRequestIdRef.current = requestId;
+    attemptedTargetOpenKeyRef.current = requestTargetOpenKey;
+
     if (isRefresh) {
       setRefreshing(true);
     } else {
@@ -74,19 +99,78 @@ export function EventsScreen({walletId, selectedChainId = null}: EventsScreenPro
 
     try {
       const nextEvents = await getWalletEvents(walletId);
+
+      if (latestRequestIdRef.current !== requestId) {
+        return;
+      }
+
       setEvents(nextEvents);
+      setLoadedTargetOpenKey(requestTargetOpenKey);
       setError(null);
     } catch (loadError) {
+      if (latestRequestIdRef.current !== requestId) {
+        return;
+      }
+
       setError(loadError instanceof Error ? loadError.message : 'Could not load events');
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (latestRequestIdRef.current === requestId) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, [walletId]);
 
   useEffect(() => {
-    loadEvents();
+    loadEvents(false, initialTargetOpenKeyRef.current);
   }, [loadEvents]);
+
+  useEffect(() => {
+    if (
+      targetOpenKey == null ||
+      attemptedTargetOpenKeyRef.current === targetOpenKey
+    ) {
+      return;
+    }
+
+    loadEvents(false, targetOpenKey);
+  }, [loadEvents, targetOpenKey]);
+
+  useEffect(() => {
+    if (!shouldHandleOpenKey(handledTargetOpenKeyRef.current, targetOpenKey)) {
+      return;
+    }
+
+    const resolution = resolveEventTarget({
+      events,
+      targetEventId,
+      loading,
+      loadFailed: error != null,
+      targetLoadComplete: loadedTargetOpenKey === targetOpenKey,
+    });
+
+    if (resolution.status === 'none' || resolution.status === 'pending') {
+      return;
+    }
+
+    handledTargetOpenKeyRef.current = targetOpenKey ?? null;
+
+    if (resolution.status === 'found') {
+      setSelectedEvent(resolution.event);
+    }
+
+    if (targetOpenKey != null) {
+      onTargetConsumed?.(targetOpenKey);
+    }
+  }, [
+    error,
+    events,
+    loadedTargetOpenKey,
+    loading,
+    onTargetConsumed,
+    targetEventId,
+    targetOpenKey,
+  ]);
 
   if (loading) {
     return (
@@ -104,7 +188,7 @@ export function EventsScreen({walletId, selectedChainId = null}: EventsScreenPro
         <Text style={styles.errorText}>{error}</Text>
         <Pressable
           onPress={() => {
-            loadEvents();
+            loadEvents(false, targetOpenKey ?? null);
           }}
           style={styles.retryButton}>
           <Text style={styles.retryButtonText}>Try again</Text>
@@ -140,7 +224,7 @@ export function EventsScreen({walletId, selectedChainId = null}: EventsScreenPro
           <RefreshControl
             refreshing={refreshing}
             onRefresh={() => {
-              loadEvents(true);
+              loadEvents(true, targetOpenKey ?? null);
             }}
             tintColor={colors.accent}
           />

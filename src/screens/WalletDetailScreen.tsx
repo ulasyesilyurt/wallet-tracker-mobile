@@ -90,11 +90,22 @@ function combineVisiblePortfolioTotals(
 type WalletDetailScreenProps = {
   wallet: Wallet;
   initialTab?: DetailTab;
+  targetEventId?: string | null;
+  targetOpenKey?: number;
+  onTargetConsumed?: (openKey: number) => void;
   onBack: () => void;
   onEdit: () => void;
 };
 
-export function WalletDetailScreen({wallet, initialTab, onBack, onEdit}: WalletDetailScreenProps) {
+export function WalletDetailScreen({
+  wallet,
+  initialTab,
+  targetEventId,
+  targetOpenKey,
+  onTargetConsumed,
+  onBack,
+  onEdit,
+}: WalletDetailScreenProps) {
   const [activeTab, setActiveTab] = useState<DetailTab>(initialTab ?? 'history');
   const [selectedNetwork, setSelectedNetwork] = useState<string | null>(null);
   const [networkMenuOpen, setNetworkMenuOpen] = useState(false);
@@ -138,15 +149,22 @@ export function WalletDetailScreen({wallet, initialTab, onBack, onEdit}: WalletD
 
   useEffect(() => {
     const nextTab = initialTab ?? 'history';
-
-    if (initialTab === 'history') {
-      console.log('[notifications] WalletDetailScreen auto-opening History tab', {
-        walletId: wallet.id,
-      });
-    }
-
     setActiveTab(nextTab);
   }, [initialTab, wallet.id]);
+
+  useEffect(() => {
+    if (targetOpenKey == null) {
+      return;
+    }
+
+    setActiveTab('history');
+    setSelectedNetwork(null);
+    setNetworkMenuOpen(false);
+
+    if (!targetEventId) {
+      onTargetConsumed?.(targetOpenKey);
+    }
+  }, [onTargetConsumed, targetEventId, targetOpenKey]);
 
   useEffect(() => {
     setSelectedNetwork(null);
@@ -598,7 +616,16 @@ export function WalletDetailScreen({wallet, initialTab, onBack, onEdit}: WalletD
             prefetchedHoldingsLoading={holdingsLoading || (shouldLoadRawHoldings && walletHoldings == null)}
           />
         ) : null}
-        {activeTab === 'history' ? <EventsScreen walletId={wallet.id} selectedChainId={selectedNetwork} /> : null}
+        {activeTab === 'history' ? (
+          <EventsScreen
+            key={wallet.id}
+            walletId={wallet.id}
+            selectedChainId={selectedNetwork}
+            targetEventId={targetEventId}
+            targetOpenKey={targetOpenKey}
+            onTargetConsumed={onTargetConsumed}
+          />
+        ) : null}
         {activeTab === 'positions' ? (
           <PositionsScreen
             walletId={wallet.id}

@@ -1,4 +1,4 @@
-import React, {useEffect} from 'react';
+import {useEffect} from 'react';
 import {Platform} from 'react-native';
 import messaging from '@react-native-firebase/messaging';
 import {useAuth} from '../auth/AuthContext';
@@ -16,8 +16,6 @@ export function PushRegistrationManager() {
       return;
     }
 
-    const authenticatedUser = user;
-
     let cancelled = false;
 
     async function registerCurrentToken() {
@@ -25,32 +23,27 @@ export function PushRegistrationManager() {
         const token = await messaging().getToken();
 
         console.log('[notifications] token acquisition for authenticated user', {
-          userId: authenticatedUser.id,
-          tokenPreview: token.slice(0, 12),
+          acquired: true,
         });
 
         console.log('[notifications] token registration request', {
-          userId: authenticatedUser.id,
           hasAuthorizationHeader: true,
           platform: getCurrentPlatform(),
         });
 
-        const response = await registerDeviceTokenRequest({
+        await registerDeviceTokenRequest({
           token,
           platform: getCurrentPlatform(),
         });
 
         if (!cancelled) {
           console.log('[notifications] backend device token save result', {
-            userId: authenticatedUser.id,
-            deviceTokenId: response.data.id,
-            savedForUserId: response.data.userId,
+            saved: true,
           });
         }
-      } catch (error) {
+      } catch {
         console.log('[notifications] authenticated device token registration failed', {
-          userId: authenticatedUser.id,
-          error,
+          failed: true,
         });
       }
     }
@@ -59,26 +52,22 @@ export function PushRegistrationManager() {
 
     const unsubscribe = messaging().onTokenRefresh(token => {
       console.log('[notifications] token refresh acquired for authenticated user', {
-        userId: authenticatedUser.id,
-        tokenPreview: token.slice(0, 12),
+        acquired: true,
       });
 
       void registerDeviceTokenRequest({
         token,
         platform: getCurrentPlatform(),
       })
-        .then(response => {
+        .then(() => {
           console.log('[notifications] backend device token save result', {
-            userId: authenticatedUser.id,
-            deviceTokenId: response.data.id,
-            savedForUserId: response.data.userId,
+            saved: true,
             source: 'token_refresh',
           });
         })
-        .catch(error => {
+        .catch(() => {
           console.log('[notifications] token refresh registration failed', {
-            userId: authenticatedUser.id,
-            error,
+            failed: true,
           });
         });
     });
