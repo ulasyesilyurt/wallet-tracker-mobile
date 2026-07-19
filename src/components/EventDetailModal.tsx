@@ -192,6 +192,13 @@ export function EventDetailModal({event, onClose}: EventDetailModalProps) {
   const imageUrl = getRemoteImageUrl(event.assetImageUrl);
   const chainLabel = formatChainDisplayName(event.chainId);
   const chainTheme = getChainBadgeTheme(event.chainId);
+  const walletAddress = event.walletAddress?.trim() || null;
+  const walletLabel = event.walletLabel?.trim() || null;
+  const walletValue = walletAddress
+    ? walletLabel
+      ? `${walletLabel} · ${shortenAddress(walletAddress)}`
+      : shortenAddress(walletAddress)
+    : null;
   const transactionHash = event.transactionHash?.trim() || null;
   const explorerUrl = getTransactionExplorerUrl(event.chainId, transactionHash);
   const dexscreenerUrl = fungibleTokenEvent
@@ -287,6 +294,13 @@ export function EventDetailModal({event, onClose}: EventDetailModalProps) {
 
             <Text style={styles.sectionLabel}>Details</Text>
             <View style={styles.detailsSection}>
+              {walletAddress && walletValue ? (
+                <DetailRow
+                  copyValue={walletAddress}
+                  label="Wallet"
+                  value={walletValue}
+                />
+              ) : null}
               {event.direction === 'incoming' && event.fromAddress ? (
                 <DetailRow
                   copyValue={event.fromAddress}
