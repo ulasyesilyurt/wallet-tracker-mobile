@@ -9,6 +9,7 @@ export type ParsedNotificationTarget = {
 
 type IdentifiedEvent = {
   id: string;
+  sourceEventIds?: string[];
 };
 
 export type EventTargetResolution<TEvent extends IdentifiedEvent> =
@@ -58,6 +59,11 @@ export function resolveEventTarget<TEvent extends IdentifiedEvent>({
     return {status: 'pending'};
   }
 
-  const event = events.find(candidate => candidate.id === targetEventId);
+  const event = events.find(candidate => {
+    return (
+      candidate.id === targetEventId ||
+      candidate.sourceEventIds?.includes(targetEventId) === true
+    );
+  });
   return event ? {status: 'found', event} : {status: 'not_found'};
 }

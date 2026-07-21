@@ -12,7 +12,13 @@ import {
   View,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import type {WalletEvent} from '../api/events';
+import {
+  isTransactionActivityItem,
+  type TransactionActivityAsset,
+  type TransactionActivityItem,
+  type WalletEvent,
+  type WalletHistoryItem,
+} from '../api/events';
 import {colors} from '../theme/colors';
 import {getTokenIconTheme} from '../utils/avatar';
 import {
@@ -30,9 +36,17 @@ import {
   isNftEvent,
   shortenAddress,
 } from '../utils/format';
+import {
+  formatTransactionActivityUsdValue,
+  formatTransactionAsset,
+  getTransactionActivityDexscreenerUrl,
+  getTransactionActivityOpenSeaUrl,
+  getTransactionActivityTitle,
+  isTransactionNftAsset,
+} from '../utils/transactionActivities';
 
 type EventDetailModalProps = {
-  event: WalletEvent | null;
+  event: WalletHistoryItem | null;
   onClose: () => void;
 };
 
@@ -154,7 +168,236 @@ function ExternalLinkButton({
   );
 }
 
-export function EventDetailModal({event, onClose}: EventDetailModalProps) {
+function TransactionAssetSection({
+  assets,
+  label,
+}: {
+  assets: TransactionActivityAsset[] | null | undefined;
+  label: 'Sent' | 'Received';
+}) {
+  const safeAssets = Array.isArray(assets) ? assets : [];
+
+  return (
+    <>
+      <Text style={styles.sectionLabel}>{label}</Text>
+      <View style={styles.transactionAssetsSection}>
+        {safeAssets.length > 0 ? (
+          safeAssets.map((asset, index) => {
+            const nftAsset = isTransactionNftAsset(asset);
+            const iconTheme = getTokenIconTheme(
+              asset.assetSymbol ?? null,
+              asset.assetName ?? null,
+            );
+
+            return (
+              <View
+                key={`${asset.sourceEventId ?? asset.assetContractAddress ?? 'asset'}:${asset.assetTokenId ?? index}`}
+                style={styles.transactionAssetRow}>
+                <View
+                  style={[
+                    styles.transactionAssetIcon,
+                    {backgroundColor: iconTheme.backgroundColor},
+                  ]}>
+                  <Text
+                    style={[
+                      styles.transactionAssetIconText,
+                      {color: iconTheme.textColor},
+                    ]}>
+                    {nftAsset ? 'NFT' : iconTheme.label}
+                  </Text>
+                </View>
+                <View style={styles.transactionAssetIdentity}>
+                  <Text numberOfLines={2} style={styles.transactionAssetAmount}>
+                    {formatTransactionAsset(asset)}
+                  </Text>
+                  {asset.assetType ? (
+                    <Text numberOfLines={1} style={styles.transactionAssetType}>
+                      {asset.assetType}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+            );
+          })
+        ) : (
+          <Text style={styles.transactionAssetsUnavailable}>Asset details unavailable</Text>
+        )}
+      </View>
+    </>
+  );
+}
+
+function TransactionActivityDetailModal({
+  activity,
+  onClose,
+}: {
+  activity: TransactionActivityItem;
+  onClose: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const title = getTransactionActivityTitle(activity.activityType);
+  const usdValueLabel = formatTransactionActivityUsdValue(activity);
+  const chainLabel = formatChainDisplayName(activity.chainId);
+  const chainTheme = getChainBadgeTheme(activity.chainId);
+  const walletAddress = activity.walletAddress?.trim() || null;
+  const walletLabel = activity.walletLabel?.trim() || null;
+  const walletValue = walletAddress
+    ? walletLabel
+      ? `${walletLabel} · ${shortenAddress(walletAddress)}`
+      : shortenAddress(walletAddress)
+    : null;
+  const transactionHash = activity.transactionHash?.trim() || null;
+  const explorerUrl = getTransactionExplorerUrl(activity.chainId, transactionHash);
+  const dexscreenerUrl = getTransactionActivityDexscreenerUrl(activity);
+  const openSeaUrl = getTransactionActivityOpenSeaUrl(activity);
+  const hasExternalLinks = Boolean(explorerUrl || dexscreenerUrl || openSeaUrl);
+
+  useEffect(() => {
+    setLinkError(null);
+  }, [activity.id]);
+
+  async function openExternalUrl(url: string) {
+    setLinkError(null);
+
+    try {
+      await Linking.openURL(url);
+    } catch {
+      setLinkError('Could not open this link. Please try again.');
+    }
+  }
+
+  return (
+    <Modal
+      animationType="slide"
+      hardwareAccelerated
+      onRequestClose={onClose}
+      statusBarTranslucent
+      transparent
+      visible>
+      <View style={styles.modalRoot}>
+        <Pressable
+          accessibilityLabel="Close event details"
+          accessibilityRole="button"
+          onPress={onClose}
+          style={styles.backdrop}
+        />
+
+        <View style={[styles.sheet, {paddingBottom: Math.max(insets.bottom, 18)}]}>
+          <View style={styles.handle} />
+
+          <View style={styles.headerRow}>
+            <View style={styles.headerTextWrap}>
+              <Text style={styles.title}>{title}</Text>
+              <Text style={styles.timestamp}>{formatEventDateTime(activity.occurredAt)}</Text>
+            </View>
+            <Pressable
+              accessibilityLabel="Close event details"
+              accessibilityRole="button"
+              hitSlop={8}
+              onPress={onClose}
+              style={({pressed}) => [
+                styles.closeButton,
+                pressed ? styles.buttonPressed : null,
+              ]}>
+              <Ionicons name="close" size={21} color={colors.textSecondary} />
+            </Pressable>
+          </View>
+
+          <ScrollView
+            bounces={false}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            style={styles.scrollView}>
+            {usdValueLabel ? (
+              <View style={styles.transactionValueSection}>
+                <Text style={styles.transactionValueLabel}>Estimated value</Text>
+                <Text style={styles.transactionValue}>{usdValueLabel}</Text>
+              </View>
+            ) : null}
+
+            <TransactionAssetSection assets={activity.sentAssets} label="Sent" />
+            <TransactionAssetSection assets={activity.receivedAssets} label="Received" />
+
+            <Text style={styles.sectionLabel}>Details</Text>
+            <View style={styles.detailsSection}>
+              {walletAddress && walletValue ? (
+                <DetailRow copyValue={walletAddress} label="Wallet" value={walletValue} />
+              ) : null}
+              {chainLabel ? (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Network</Text>
+                  <View
+                    style={[
+                      styles.chainPill,
+                      {
+                        backgroundColor: chainTheme.backgroundColor,
+                        borderColor: chainTheme.borderColor,
+                      },
+                    ]}>
+                    <Text style={[styles.chainPillText, {color: chainTheme.textColor}]}>
+                      {chainLabel}
+                    </Text>
+                  </View>
+                </View>
+              ) : null}
+              {transactionHash ? (
+                <DetailRow
+                  copyValue={transactionHash}
+                  label="Transaction"
+                  monospace
+                  value={previewHash(transactionHash)}
+                />
+              ) : null}
+            </View>
+
+            {hasExternalLinks ? (
+              <>
+                <Text style={styles.sectionLabel}>Links</Text>
+                <View style={styles.linksSection}>
+                  {explorerUrl ? (
+                    <ExternalLinkButton
+                      label="View on block explorer"
+                      onPress={() => {
+                        openExternalUrl(explorerUrl);
+                      }}
+                    />
+                  ) : null}
+                  {dexscreenerUrl ? (
+                    <ExternalLinkButton
+                      label="View payment token on Dexscreener"
+                      onPress={() => {
+                        openExternalUrl(dexscreenerUrl);
+                      }}
+                    />
+                  ) : null}
+                  {openSeaUrl ? (
+                    <ExternalLinkButton
+                      label="View NFT on OpenSea"
+                      onPress={() => {
+                        openExternalUrl(openSeaUrl);
+                      }}
+                    />
+                  ) : null}
+                </View>
+              </>
+            ) : null}
+
+            {linkError ? <Text style={styles.linkError}>{linkError}</Text> : null}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function RawEventDetailModal({
+  event,
+  onClose,
+}: {
+  event: WalletEvent;
+  onClose: () => void;
+}) {
   const insets = useSafeAreaInsets();
   const [imageFailed, setImageFailed] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
@@ -162,11 +405,7 @@ export function EventDetailModal({event, onClose}: EventDetailModalProps) {
   useEffect(() => {
     setImageFailed(false);
     setLinkError(null);
-  }, [event?.id, event?.assetImageUrl]);
-
-  if (!event) {
-    return null;
-  }
+  }, [event.id, event.assetImageUrl]);
 
   const nftEvent = isNftEvent(event.eventType, event.assetType);
   const fungibleTokenEvent = isFungibleTokenEvent(event.eventType, event.assetType);
@@ -400,6 +639,18 @@ export function EventDetailModal({event, onClose}: EventDetailModalProps) {
   );
 }
 
+export function EventDetailModal({event, onClose}: EventDetailModalProps) {
+  if (!event) {
+    return null;
+  }
+
+  if (isTransactionActivityItem(event)) {
+    return <TransactionActivityDetailModal activity={event} onClose={onClose} />;
+  }
+
+  return <RawEventDetailModal event={event} onClose={onClose} />;
+}
+
 const styles = StyleSheet.create({
   modalRoot: {
     flex: 1,
@@ -510,6 +761,75 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 13,
     fontWeight: '700',
+    color: colors.textSecondary,
+  },
+  transactionValueSection: {
+    padding: 14,
+    borderRadius: 18,
+    backgroundColor: colors.elevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  transactionValueLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.textTertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  transactionValue: {
+    marginTop: 4,
+    fontSize: 20,
+    fontWeight: '800',
+    color: colors.textPrimary,
+  },
+  transactionAssetsSection: {
+    overflow: 'hidden',
+    borderRadius: 18,
+    backgroundColor: colors.elevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  transactionAssetRow: {
+    minHeight: 64,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  transactionAssetIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  transactionAssetIconText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  transactionAssetIdentity: {
+    flex: 1,
+    minWidth: 0,
+  },
+  transactionAssetAmount: {
+    fontSize: 14,
+    fontWeight: '800',
+    lineHeight: 18,
+    color: colors.textPrimary,
+  },
+  transactionAssetType: {
+    marginTop: 3,
+    fontSize: 11,
+    color: colors.textSecondary,
+  },
+  transactionAssetsUnavailable: {
+    paddingHorizontal: 14,
+    paddingVertical: 16,
+    fontSize: 13,
     color: colors.textSecondary,
   },
   sectionLabel: {

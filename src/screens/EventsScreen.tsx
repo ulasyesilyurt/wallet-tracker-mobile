@@ -9,9 +9,14 @@ import {
   Text,
   View,
 } from 'react-native';
-import {getWalletEvents, type WalletEvent} from '../api/events';
+import {
+  getWalletEvents,
+  isTransactionActivityItem,
+  type WalletHistoryItem,
+} from '../api/events';
 import {EventCard} from '../components/EventCard';
 import {EventDetailModal} from '../components/EventDetailModal';
+import {TransactionActivityCard} from '../components/TransactionActivityCard';
 import {colors} from '../theme/colors';
 import {formatEventDayLabel, getEventDayKey} from '../utils/format';
 import {
@@ -36,10 +41,10 @@ type EventListItem =
   | {
       type: 'event';
       key: string;
-      event: WalletEvent;
+      event: WalletHistoryItem;
     };
 
-function buildEventListItems(events: WalletEvent[]): EventListItem[] {
+function buildEventListItems(events: WalletHistoryItem[]): EventListItem[] {
   const items: EventListItem[] = [];
   let lastDayKey: string | null = null;
 
@@ -72,11 +77,11 @@ export function EventsScreen({
   targetOpenKey,
   onTargetConsumed,
 }: EventsScreenProps) {
-  const [events, setEvents] = useState<WalletEvent[]>([]);
+  const [events, setEvents] = useState<WalletHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedEvent, setSelectedEvent] = useState<WalletEvent | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<WalletHistoryItem | null>(null);
   const [loadedTargetOpenKey, setLoadedTargetOpenKey] = useState<number | null>(null);
   const handledTargetOpenKeyRef = useRef<number | null>(null);
   const attemptedTargetOpenKeyRef = useRef<number | null>(null);
@@ -208,6 +213,15 @@ export function EventsScreen({
         <View style={styles.dateSeparator}>
           <Text style={styles.dateSeparatorText}>{item.label}</Text>
         </View>
+      );
+    }
+
+    if (isTransactionActivityItem(item.event)) {
+      return (
+        <TransactionActivityCard
+          activity={item.event}
+          onPress={() => setSelectedEvent(item.event)}
+        />
       );
     }
 

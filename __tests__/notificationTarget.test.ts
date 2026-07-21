@@ -47,6 +47,23 @@ describe('notification event targets', () => {
     ).toEqual({status: 'found', event: events[1]});
   });
 
+  it('matches a grouped transaction through its raw source event ids', () => {
+    const groupedActivity = {
+      id: 'transaction-1',
+      sourceEventIds: ['event-1', 'event-2'],
+    };
+
+    expect(
+      resolveEventTarget({
+        events: [groupedActivity],
+        targetEventId: 'event-2',
+        loading: false,
+        loadFailed: false,
+        targetLoadComplete: true,
+      }),
+    ).toEqual({status: 'found', event: groupedActivity});
+  });
+
   it('definitively falls back when a successful load has no match', () => {
     expect(
       resolveEventTarget({
