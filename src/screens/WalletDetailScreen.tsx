@@ -1,7 +1,8 @@
 import React, {useEffect, useRef, useState} from 'react';
 import Clipboard from '@react-native-clipboard/clipboard';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import {ActivityIndicator, Pressable, StyleSheet, Text, View} from 'react-native';
+import {ActivityIndicator, Platform, Pressable, StyleSheet, Text, View} from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {getWalletPerformance, type PortfolioPerformance} from '../api/performance';
 import {getWalletHoldings, type TokenHolding, type WalletHoldings} from '../api/holdings';
 import {getWalletPositions, type WalletPosition, type WalletPositions} from '../api/positions';
@@ -106,6 +107,9 @@ export function WalletDetailScreen({
   onBack,
   onEdit,
 }: WalletDetailScreenProps) {
+  const insets = useSafeAreaInsets();
+  // App's native SafeAreaView already applies the top inset on iOS.
+  const topInset = Platform.OS === 'android' ? insets.top : 0;
   const [activeTab, setActiveTab] = useState<DetailTab>(initialTab ?? 'history');
   const [selectedNetwork, setSelectedNetwork] = useState<string | null>(null);
   const [networkMenuOpen, setNetworkMenuOpen] = useState(false);
@@ -442,13 +446,13 @@ export function WalletDetailScreen({
   ]);
 
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, {paddingTop: styles.screen.paddingTop + topInset}]}>
       <View style={styles.headerRow}>
-        <Pressable onPress={onBack} style={styles.headerButton}>
+        <Pressable onPress={onBack} style={styles.headerButton} hitSlop={6}>
           <Text style={styles.headerButtonText}>‹</Text>
         </Pressable>
 
-        <Pressable style={styles.headerButtonAccent} onPress={onEdit}>
+        <Pressable style={styles.headerButtonAccent} onPress={onEdit} hitSlop={6}>
           <Text style={styles.headerButtonAccentText}>✎</Text>
         </Pressable>
       </View>
@@ -652,12 +656,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerButton: {
-    width: 38,
-    height: 38,
+    width: 44,
+    height: 44,
     backgroundColor: colors.elevated,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 19,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -667,12 +671,12 @@ const styles = StyleSheet.create({
     fontSize: 20,
   },
   headerButtonAccent: {
-    width: 38,
-    height: 38,
+    width: 44,
+    height: 44,
     backgroundColor: colors.elevated,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 19,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
