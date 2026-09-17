@@ -2,13 +2,13 @@ import React, {useMemo, useState} from 'react';
 import {
   ActivityIndicator,
   Pressable,
-  ScrollView,
   StyleSheet,
   Switch,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import {SafeAreaScrollScreen} from '../components/SafeAreaScreen';
 import {createWallet} from '../api/wallets';
 import {colors} from '../theme/colors';
 import type {Wallet, WalletTrackType} from '../types/wallet';
@@ -137,9 +137,9 @@ export function AddWalletScreen({onBack, onSaved}: AddWalletScreenProps) {
   }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <SafeAreaScrollScreen style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <View style={styles.headerRow}>
-        <Pressable onPress={onBack} style={styles.headerButton}>
+        <Pressable onPress={onBack} style={styles.headerButton} hitSlop={6}>
           <Text style={styles.headerButtonText}>Back</Text>
         </Pressable>
       </View>
@@ -248,7 +248,7 @@ export function AddWalletScreen({onBack, onSaved}: AddWalletScreenProps) {
           <Text style={styles.saveButtonText}>Save wallet</Text>
         )}
       </Pressable>
-    </ScrollView>
+    </SafeAreaScrollScreen>
   );
 }
 
@@ -263,10 +263,15 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   headerRow: {
+    alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'flex-start',
   },
   headerButton: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.elevated,
     borderWidth: 1,
     borderColor: colors.border,

@@ -1,8 +1,8 @@
 import React, {useEffect, useRef, useState} from 'react';
 import Clipboard from '@react-native-clipboard/clipboard';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import {ActivityIndicator, Platform, Pressable, StyleSheet, Text, View} from 'react-native';
-import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {ActivityIndicator, Pressable, StyleSheet, Text, View} from 'react-native';
+import {SafeAreaScreen} from '../components/SafeAreaScreen';
 import {getWalletPerformance, type PortfolioPerformance} from '../api/performance';
 import {getWalletHoldings, type TokenHolding, type WalletHoldings} from '../api/holdings';
 import {getWalletPositions, type WalletPosition, type WalletPositions} from '../api/positions';
@@ -107,9 +107,6 @@ export function WalletDetailScreen({
   onBack,
   onEdit,
 }: WalletDetailScreenProps) {
-  const insets = useSafeAreaInsets();
-  // App's native SafeAreaView already applies the top inset on iOS.
-  const topInset = Platform.OS === 'android' ? insets.top : 0;
   const [activeTab, setActiveTab] = useState<DetailTab>(initialTab ?? 'history');
   const [selectedNetwork, setSelectedNetwork] = useState<string | null>(null);
   const [networkMenuOpen, setNetworkMenuOpen] = useState(false);
@@ -446,7 +443,7 @@ export function WalletDetailScreen({
   ]);
 
   return (
-    <View style={[styles.screen, {paddingTop: styles.screen.paddingTop + topInset}]}>
+    <SafeAreaScreen style={styles.screen} topPadding={styles.screen.paddingTop}>
       <View style={styles.headerRow}>
         <Pressable onPress={onBack} style={styles.headerButton} hitSlop={6}>
           <Text style={styles.headerButtonText}>‹</Text>
@@ -639,7 +636,7 @@ export function WalletDetailScreen({
           />
         ) : null}
       </View>
-    </View>
+    </SafeAreaScreen>
   );
 }
 

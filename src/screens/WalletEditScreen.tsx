@@ -10,6 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import {SafeAreaScreen} from '../components/SafeAreaScreen';
 import {deleteWallet, updateWallet} from '../api/wallets';
 import {colors} from '../theme/colors';
 import type {Wallet, WalletTrackType} from '../types/wallet';
@@ -182,9 +183,9 @@ export function WalletEditScreen({
   }
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaScreen style={styles.screen} topPadding={styles.screen.paddingTop}>
       <View style={styles.headerRow}>
-        <Pressable onPress={onBack} style={styles.headerButton}>
+        <Pressable onPress={onBack} style={styles.headerButton} hitSlop={6}>
           <Text style={styles.headerButtonText}>Cancel</Text>
         </Pressable>
       </View>
@@ -318,7 +319,7 @@ export function WalletEditScreen({
           {saving ? <ActivityIndicator color={colors.primaryCtaText} /> : <Text style={styles.saveButtonText}>Save changes</Text>}
         </Pressable>
       </View>
-    </View>
+    </SafeAreaScreen>
   );
 }
 
@@ -342,6 +343,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
   },
   headerButton: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.elevated,
     borderWidth: 1,
     borderColor: colors.border,

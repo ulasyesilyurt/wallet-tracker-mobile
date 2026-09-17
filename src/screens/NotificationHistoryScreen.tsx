@@ -8,6 +8,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import {SafeAreaScreen} from '../components/SafeAreaScreen';
 import {getNotificationHistory, type NotificationHistoryItem} from '../api/notifications';
 import {colors} from '../theme/colors';
 import {formatActivityAmount} from '../utils/format';
@@ -173,9 +174,9 @@ export function NotificationHistoryScreen({
 
   if (loading) {
     return (
-      <View style={styles.screen}>
+      <SafeAreaScreen style={styles.screen} topPadding={styles.screen.paddingTop}>
         <View style={styles.headerRow}>
-          <Pressable onPress={onBack} style={styles.headerButton}>
+          <Pressable onPress={onBack} style={styles.headerButton} hitSlop={6}>
             <Text style={styles.headerButtonText}>Back</Text>
           </Pressable>
         </View>
@@ -183,15 +184,15 @@ export function NotificationHistoryScreen({
           <ActivityIndicator size="large" color={colors.accent} />
           <Text style={styles.stateText}>Loading notifications...</Text>
         </View>
-      </View>
+      </SafeAreaScreen>
     );
   }
 
   if (error) {
     return (
-      <View style={styles.screen}>
+      <SafeAreaScreen style={styles.screen} topPadding={styles.screen.paddingTop}>
         <View style={styles.headerRow}>
-          <Pressable onPress={onBack} style={styles.headerButton}>
+          <Pressable onPress={onBack} style={styles.headerButton} hitSlop={6}>
             <Text style={styles.headerButtonText}>Back</Text>
           </Pressable>
         </View>
@@ -202,14 +203,14 @@ export function NotificationHistoryScreen({
             <Text style={styles.retryButtonText}>Try again</Text>
           </Pressable>
         </View>
-      </View>
+      </SafeAreaScreen>
     );
   }
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaScreen style={styles.screen} topPadding={styles.screen.paddingTop}>
       <View style={styles.headerRow}>
-        <Pressable onPress={onBack} style={styles.headerButton}>
+        <Pressable onPress={onBack} style={styles.headerButton} hitSlop={6}>
           <Text style={styles.headerButtonText}>Back</Text>
         </Pressable>
       </View>
@@ -248,7 +249,7 @@ export function NotificationHistoryScreen({
         }
         showsVerticalScrollIndicator={false}
       />
-    </View>
+    </SafeAreaScreen>
   );
 }
 
@@ -263,6 +264,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   headerButton: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
     alignSelf: 'flex-start',
     backgroundColor: colors.elevated,
     borderWidth: 1,

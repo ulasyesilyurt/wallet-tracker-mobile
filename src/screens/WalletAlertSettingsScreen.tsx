@@ -9,6 +9,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import {SafeAreaScreen} from '../components/SafeAreaScreen';
 import {
   getWalletAlertSettings,
   updateWalletAlertSettings,
@@ -180,11 +181,12 @@ export function WalletAlertSettingsScreen({
     alertControlsDisabled || !notifyFungibleTransfers;
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaScreen style={styles.screen} topPadding={styles.screen.paddingTop}>
       <View style={styles.headerRow}>
         <Pressable
           onPress={onBack}
           style={styles.headerButton}
+          hitSlop={6}
           disabled={saving}
         >
           <Text style={styles.headerButtonText}>Back</Text>
@@ -411,7 +413,7 @@ export function WalletAlertSettingsScreen({
           </View>
         </>
       )}
-    </View>
+    </SafeAreaScreen>
   );
 }
 
@@ -425,6 +427,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
   },
   headerButton: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
     alignSelf: 'flex-start',
     backgroundColor: colors.elevated,
     borderWidth: 1,

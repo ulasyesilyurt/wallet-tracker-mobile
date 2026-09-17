@@ -8,6 +8,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import {SafeAreaScreen} from '../components/SafeAreaScreen';
 import {
   getWalletPortfolioSummary,
   type WalletPortfolioSummary,
@@ -189,7 +190,7 @@ export function FollowingScreen({
   }, [refreshKey]);
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaScreen style={styles.screen} topPadding={styles.screen.paddingTop}>
       <View style={styles.headerRow}>
         <View>
           <Text style={styles.title}>Wallets</Text>
@@ -277,7 +278,7 @@ export function FollowingScreen({
           showsVerticalScrollIndicator={false}
         />
       )}
-    </View>
+    </SafeAreaScreen>
   );
 }
 
@@ -306,9 +307,9 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
   },
   iconButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.primaryCtaFill,

@@ -1,5 +1,6 @@
 import React from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
+import {SafeAreaScreen} from '../components/SafeAreaScreen';
 import {useAuth} from '../auth/AuthContext';
 import {appInfo} from '../config/app';
 import {colors} from '../theme/colors';
@@ -13,7 +14,7 @@ export function SettingsScreen({onOpenNotificationHistory, onLogout}: SettingsSc
   const {user} = useAuth();
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaScreen style={styles.screen} topPadding={styles.screen.paddingTop}>
       <View style={styles.header}>
         <Text style={styles.title}>Settings</Text>
         <Text style={styles.subtitle}>Account, alerts, and app details</Text>
@@ -69,7 +70,7 @@ export function SettingsScreen({onOpenNotificationHistory, onLogout}: SettingsSc
       <Pressable style={styles.logoutButton} onPress={onLogout}>
         <Text style={styles.logoutButtonText}>Logout</Text>
       </Pressable>
-    </View>
+    </SafeAreaScreen>
   );
 }
 
