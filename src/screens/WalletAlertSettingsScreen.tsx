@@ -14,13 +14,17 @@ import {
   getWalletAlertSettings,
   updateWalletAlertSettings,
 } from '../api/walletAlertSettings';
-import { colors } from '../theme/colors';
+import { colors as appColors } from '../theme/colors';
+import {walletDetailColors} from '../theme/walletDetail';
+import {WalletSectionHeader} from '../components/WalletDetailUI';
 import type { Wallet } from '../types/wallet';
 import { shortenAddress } from '../utils/format';
 
 type WalletAlertSettingsScreenProps = {
   wallet: Wallet;
   onBack: () => void;
+  embedded?: boolean;
+  bottomPadding?: number;
 };
 
 type MinimumAmountValidation =
@@ -56,7 +60,16 @@ function validateMinimumAmount(value: string): MinimumAmountValidation {
 export function WalletAlertSettingsScreen({
   wallet,
   onBack,
+  embedded = false,
+  bottomPadding = 16,
 }: WalletAlertSettingsScreenProps) {
+  const colors = embedded ? walletDetailColors : appColors;
+  const styles = embedded ? embeddedStyles : defaultStyles;
+  const ScreenContainer = embedded ? View : SafeAreaScreen;
+  const switchTrackColor = embedded ? {false: 'rgba(255,255,255,0.10)', true: colors.positive}
+    : {false: colors.border, true: colors.accent};
+  const enabledThumbColor = embedded ? colors.background : colors.primaryCtaFill;
+  const disabledThumbColor = embedded ? colors.textTertiary : colors.textSecondary;
   const [minimumAlertUsd, setMinimumAlertUsd] = useState('');
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [notifyFungibleTransfers, setNotifyFungibleTransfers] = useState(false);
@@ -181,22 +194,27 @@ export function WalletAlertSettingsScreen({
     alertControlsDisabled || !notifyFungibleTransfers;
 
   return (
-    <SafeAreaScreen style={styles.screen} topPadding={styles.screen.paddingTop}>
-      <View style={styles.headerRow}>
-        <Pressable
-          onPress={onBack}
-          style={styles.headerButton}
-          hitSlop={6}
-          disabled={saving}
-        >
-          <Text style={styles.headerButtonText}>Back</Text>
-        </Pressable>
-      </View>
+    <ScreenContainer {...(embedded ? {style: styles.screen} : {style: styles.screen, topPadding: 20})}>
+      {embedded ? <WalletSectionHeader label="Alert settings" /> : (
+        <>
+          <View style={styles.headerRow}>
+            <Pressable
+              onPress={onBack}
+              style={styles.headerButton}
+              hitSlop={6}
+              disabled={saving}
+            >
+              <Text style={styles.headerButtonText}>Back</Text>
+            </Pressable>
+          </View>
 
-      <View style={styles.header}>
-        <Text style={styles.title}>Alert settings</Text>
-        <Text style={styles.subtitle}>{subtitle}</Text>
-      </View>
+          <View style={styles.header}>
+            <Text style={styles.title}>Alert settings</Text>
+            <Text style={styles.subtitle}>{subtitle}</Text>
+          </View>
+
+        </>
+      )}
 
       {loading ? (
         <View style={styles.centerState}>
@@ -215,7 +233,7 @@ export function WalletAlertSettingsScreen({
         <>
           <ScrollView
             style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[styles.scrollContent, embedded && {paddingBottom: bottomPadding}]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
@@ -229,17 +247,18 @@ export function WalletAlertSettingsScreen({
                   </Text>
                 </View>
                 <Switch
+                  hitSlop={embedded ? {top: 7, bottom: 7, left: 0, right: 0} : undefined}
                   value={notificationsEnabled}
                   onValueChange={value => {
                     setNotificationsEnabled(value);
                     clearSaveFeedback();
                   }}
                   disabled={saving}
-                  trackColor={{ false: colors.border, true: colors.accent }}
+                  trackColor={switchTrackColor}
                   thumbColor={
                     notificationsEnabled
-                      ? colors.primaryCtaFill
-                      : colors.textSecondary
+                      ? enabledThumbColor
+                      : disabledThumbColor
                   }
                 />
               </View>
@@ -262,6 +281,7 @@ export function WalletAlertSettingsScreen({
                   </Text>
                 </View>
                 <Switch
+                  hitSlop={embedded ? {top: 7, bottom: 7, left: 0, right: 0} : undefined}
                   value={notifyFungibleTransfers}
                   onValueChange={value => {
                     setNotifyFungibleTransfers(value);
@@ -269,11 +289,11 @@ export function WalletAlertSettingsScreen({
                     clearSaveFeedback();
                   }}
                   disabled={alertControlsDisabled}
-                  trackColor={{ false: colors.border, true: colors.accent }}
+                  trackColor={switchTrackColor}
                   thumbColor={
                     notifyFungibleTransfers
-                      ? colors.primaryCtaFill
-                      : colors.textSecondary
+                      ? enabledThumbColor
+                      : disabledThumbColor
                   }
                 />
               </View>
@@ -289,17 +309,18 @@ export function WalletAlertSettingsScreen({
                 <View style={styles.switchRow}>
                   <Text style={styles.rowTitle}>Incoming transfers</Text>
                   <Switch
+                  hitSlop={embedded ? {top: 7, bottom: 7, left: 0, right: 0} : undefined}
                     value={notifyIncomingTransfers}
                     onValueChange={value => {
                       setNotifyIncomingTransfers(value);
                       clearSaveFeedback();
                     }}
                     disabled={fungibleControlsDisabled}
-                    trackColor={{ false: colors.border, true: colors.accent }}
+                    trackColor={switchTrackColor}
                     thumbColor={
                       notifyIncomingTransfers
-                        ? colors.primaryCtaFill
-                        : colors.textSecondary
+                        ? enabledThumbColor
+                        : disabledThumbColor
                     }
                   />
                 </View>
@@ -309,17 +330,18 @@ export function WalletAlertSettingsScreen({
                 <View style={styles.switchRow}>
                   <Text style={styles.rowTitle}>Outgoing transfers</Text>
                   <Switch
+                  hitSlop={embedded ? {top: 7, bottom: 7, left: 0, right: 0} : undefined}
                     value={notifyOutgoingTransfers}
                     onValueChange={value => {
                       setNotifyOutgoingTransfers(value);
                       clearSaveFeedback();
                     }}
                     disabled={fungibleControlsDisabled}
-                    trackColor={{ false: colors.border, true: colors.accent }}
+                    trackColor={switchTrackColor}
                     thumbColor={
                       notifyOutgoingTransfers
-                        ? colors.primaryCtaFill
-                        : colors.textSecondary
+                        ? enabledThumbColor
+                        : disabledThumbColor
                     }
                   />
                 </View>
@@ -372,24 +394,25 @@ export function WalletAlertSettingsScreen({
                   </Text>
                 </View>
                 <Switch
+                  hitSlop={embedded ? {top: 7, bottom: 7, left: 0, right: 0} : undefined}
                   value={notifyNftTransfers}
                   onValueChange={value => {
                     setNotifyNftTransfers(value);
                     clearSaveFeedback();
                   }}
                   disabled={alertControlsDisabled}
-                  trackColor={{ false: colors.border, true: colors.accent }}
+                  trackColor={switchTrackColor}
                   thumbColor={
                     notifyNftTransfers
-                      ? colors.primaryCtaFill
-                      : colors.textSecondary
+                      ? enabledThumbColor
+                      : disabledThumbColor
                   }
                 />
               </View>
             </View>
           </ScrollView>
 
-          <View style={styles.footer}>
+          <View style={[styles.footer, embedded && {paddingBottom: bottomPadding}]}>
             {saveError ? (
               <Text style={styles.saveErrorText}>{saveError}</Text>
             ) : null}
@@ -413,11 +436,11 @@ export function WalletAlertSettingsScreen({
           </View>
         </>
       )}
-    </SafeAreaScreen>
+    </ScreenContainer>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Record<keyof typeof appColors, string>) => StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.background,
@@ -622,3 +645,17 @@ const styles = StyleSheet.create({
     color: colors.positive,
   },
 });
+
+const defaultStyles = createStyles(appColors);
+const embeddedBaseStyles = createStyles(walletDetailColors);
+const embeddedStyles = {
+  ...embeddedBaseStyles,
+  screen: {...embeddedBaseStyles.screen, paddingTop: 0},
+  scrollContent: {...embeddedBaseStyles.scrollContent, paddingHorizontal: 0},
+  section: {...embeddedBaseStyles.section, padding: 14, borderRadius: 18},
+  switchRow: {...embeddedBaseStyles.switchRow, minHeight: 44},
+  retryButton: {...embeddedBaseStyles.retryButton, minHeight: 44, justifyContent: 'center' as const},
+  sectionLabel: {...embeddedBaseStyles.sectionLabel, textTransform: 'none' as const, letterSpacing: 0, fontSize: 13.5},
+  footer: {...embeddedBaseStyles.footer, paddingHorizontal: 0, paddingBottom: 16},
+  saveButton: {...embeddedBaseStyles.saveButton, minHeight: 50, borderRadius: 16},
+};

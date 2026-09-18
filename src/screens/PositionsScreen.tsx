@@ -1,27 +1,24 @@
 import React, {useEffect, useState} from 'react';
 import {
-  ActivityIndicator,
   FlatList,
-  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import {getWalletPositions, type WalletPosition, type WalletPositions} from '../api/positions';
-import {colors} from '../theme/colors';
+import {walletDetailColors as colors} from '../theme/walletDetail';
+import {NetworkBadge, WalletSectionHeader, WalletListLoading, WalletListState, DataQualityFooter} from '../components/WalletDetailUI';
 import {formatPositionTokenAmount} from '../utils/format';
-import {
-  formatChainDisplayName,
-  formatWalletChainsLabel,
-  getChainBadgeTheme,
-} from '../utils/chains';
 
 type PositionsScreenProps = {
   walletId: string;
   selectedChainId?: string | null;
   prefetchedPositions?: WalletPositions | null;
   prefetchedPositionsLoading?: boolean;
+  networkFilter?: React.ReactNode;
+  narrow?: boolean;
+  bottomPadding?: number;
 };
 
 function formatValueUsd(value: number | null) {
@@ -47,23 +44,6 @@ function formatPositionTypeLabel(value: string) {
     .filter(Boolean)
     .map(part => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
-}
-
-function getTotalPositionsValue(positions: WalletPosition[]) {
-  const total = positions.reduce((sum, position) => {
-    if (typeof position.valueUsd !== 'number' || !Number.isFinite(position.valueUsd)) {
-      return sum;
-    }
-
-    return sum + position.valueUsd;
-  }, 0);
-
-  const hasAnyValuedPosition = positions.some(
-    position =>
-      typeof position.valueUsd === 'number' && Number.isFinite(position.valueUsd),
-  );
-
-  return hasAnyValuedPosition ? total : null;
 }
 
 function getSortablePositionValueUsd(position: WalletPosition) {
@@ -95,59 +75,31 @@ function sortPositionsByValueUsdDescending(positions: WalletPosition[]) {
   });
 }
 
-function PositionCard({position}: {position: WalletPosition}) {
+function PositionCard({position, narrow}: {position: WalletPosition; narrow: boolean}) {
   const valueUsdText = formatValueUsd(position.valueUsd);
   const formattedAmount = formatPositionTokenAmount(position.amount);
-  const positionTypeLabel = formatPositionTypeLabel(position.positionType);
-  const positionChainLabel = formatChainDisplayName(position.chainId ?? '');
-  const positionChainTheme = getChainBadgeTheme(position.chainId);
-
+  const state = position.positionType.toLowerCase();
+  const stateLabel = state.includes('stak') ? 'STAKED' : state.includes('reward') ? 'REWARD'
+    : state.includes('lock') ? 'LOCKED' : formatPositionTypeLabel(position.positionType).toUpperCase();
   return (
-    <View style={styles.positionCard}>
+    <View style={[styles.positionCard, narrow && styles.positionCardNarrow]}>
       <View style={styles.positionHeader}>
-        <View style={styles.positionIdentity}>
-          <Text style={styles.positionProtocol} numberOfLines={1}>
-            {position.protocolName}
-          </Text>
-          <Text style={styles.positionAsset} numberOfLines={1}>
-            {position.assetSymbol}
-            {position.assetName ? ` · ${position.assetName}` : ''}
-          </Text>
-        </View>
-        <View style={styles.positionValueBlock}>
-          <Text
-            style={[
-              styles.positionValueUsd,
-              !valueUsdText ? styles.positionValueUnavailable : null,
-            ]}>
-            {valueUsdText ?? 'Unavailable'}
-          </Text>
-          <Text style={styles.positionAmount}>
-            {formattedAmount} {position.assetSymbol}
-          </Text>
-        </View>
+        <Text maxFontSizeMultiplier={1.2} numberOfLines={1}
+          style={[styles.positionName, narrow && styles.positionNameNarrow]}>
+          {position.protocolName}{position.assetName || position.assetSymbol ? ` · ${position.assetName || position.assetSymbol}` : ''}
+        </Text>
+        <Text maxFontSizeMultiplier={1.2} numberOfLines={1}
+          style={[styles.positionValue, narrow && styles.positionValueNarrow, !valueUsdText && styles.unavailable]}>{valueUsdText ?? '—'}</Text>
       </View>
       <View style={styles.positionMetaRow}>
-        <View style={styles.positionMetaPills}>
-          <View style={styles.metaPill}>
-            <Text style={styles.positionMeta}>{positionTypeLabel}</Text>
-          </View>
-          {positionChainLabel ? (
-            <View
-              style={[
-                styles.metaPill,
-                {
-                  backgroundColor: positionChainTheme.backgroundColor,
-                  borderColor: positionChainTheme.borderColor,
-                },
-              ]}>
-              <Text style={[styles.positionMeta, {color: positionChainTheme.textColor}]}>
-                {positionChainLabel}
-              </Text>
-            </View>
-          ) : null}
+        <View style={[styles.stateBadge, state.includes('reward') && styles.rewardBadge, state.includes('lock') && styles.lockedBadge]}>
+          <Text maxFontSizeMultiplier={1.2} style={[styles.stateText,
+            state.includes('reward') && styles.rewardText, state.includes('lock') && styles.lockedText]}>{stateLabel}</Text>
         </View>
-        <Text style={styles.positionMetaSecondary}>Protocol asset</Text>
+        <NetworkBadge chainId={position.chainId} narrow={narrow} />
+        <Text numberOfLines={1} maxFontSizeMultiplier={1.2} style={[styles.positionAmount, narrow && styles.positionAmountNarrow]}>
+          {formattedAmount} {position.assetSymbol}
+        </Text>
       </View>
     </View>
   );
@@ -181,6 +133,9 @@ export function PositionsScreen({
   selectedChainId = null,
   prefetchedPositions = null,
   prefetchedPositionsLoading = false,
+  networkFilter,
+  narrow = false,
+  bottomPadding = 16,
 }: PositionsScreenProps) {
   const [positions, setPositions] = useState<WalletPositions | null>(prefetchedPositions);
   const [loading, setLoading] = useState(prefetchedPositions ? false : prefetchedPositionsLoading || true);
@@ -228,48 +183,15 @@ export function PositionsScreen({
   const effectivePositions = prefetchedPositions ?? positions;
   const spinnerVisible = loading && !effectivePositions;
 
-  if (spinnerVisible) {
-    return (
-      <View style={styles.centerState}>
-        <ActivityIndicator size="large" color={colors.accent} />
-        <Text style={styles.stateText}>Loading positions...</Text>
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View style={styles.centerState}>
-        <Text style={styles.errorTitle}>Could not load positions</Text>
-        <Text style={styles.errorText}>{error}</Text>
-        <Pressable style={styles.retryButton} onPress={() => void loadPositions()}>
-          <Text style={styles.retryButtonText}>Try again</Text>
-        </Pressable>
-      </View>
-    );
-  }
-
   const allPositions = effectivePositions?.positions ?? [];
   const filteredPositions = getFilteredPositionsByChain(allPositions, selectedChainId);
   const protocolPositions = sortPositionsByValueUsdDescending(filteredPositions);
-  const totalPositionsValue = formatValueUsd(getTotalPositionsValue(protocolPositions));
-  const chainLabel = selectedChainId
-    ? formatChainDisplayName(selectedChainId)
-    : formatWalletChainsLabel(effectivePositions?.chainId ?? '', effectivePositions?.enabledChains);
-  const chainTheme = getChainBadgeTheme(selectedChainId ?? effectivePositions?.chainId);
   const hasRelevantPartial = effectivePositions?.isPartial === true && hasRelevantPartialReason(
     effectivePositions?.partialReasons,
     selectedChainId,
   );
   const isDegradedProviderEmptyState =
     hasRelevantPartial && filteredPositions.length === 0;
-  const summaryTitle = totalPositionsValue ??
-    (isDegradedProviderEmptyState ? 'Positions temporarily unavailable' : 'No priced positions');
-  const summaryBody = isDegradedProviderEmptyState
-    ? 'Protocol positions could not be refreshed right now because the provider is rate-limited. Try again later.'
-    : protocolPositions.length > 0
-      ? null
-      : 'Protocol deposits, staking, and vault assets will appear here when available.';
   const emptyTitle = isDegradedProviderEmptyState
     ? 'Positions temporarily unavailable'
     : 'No protocol positions yet';
@@ -277,225 +199,49 @@ export function PositionsScreen({
     ? 'Protocol positions could not be refreshed right now because the provider is rate-limited. Try again later.'
     : 'This wallet has no indexed staking or DeFi positions right now, or the provider has not returned any yet.';
 
+  const sectionHeader = <WalletSectionHeader
+    label={effectivePositions ? `${protocolPositions.length} position${protocolPositions.length === 1 ? '' : 's'}` : 'Positions'}
+    networkFilter={networkFilter} narrow={narrow} />;
+  if (spinnerVisible) {
+    return <View style={styles.tabContent}>{sectionHeader}<WalletListLoading label="Loading positions" narrow={narrow} /></View>;
+  }
+  if (error) {
+    return <View style={styles.tabContent}>{sectionHeader}<WalletListState title="Could not load positions" body={error}
+      onRetry={() => void loadPositions()} /></View>;
+  }
   return (
     <FlatList
       data={protocolPositions}
       keyExtractor={(item, index) => `${item.chainId ?? 'unknown'}:${item.protocolName}:${item.assetSymbol}:${index}`}
-      contentContainerStyle={protocolPositions.length === 0 ? styles.emptyContent : styles.listContent}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={() => void loadPositions(true)} tintColor={colors.accent} />
-      }
-      ListHeaderComponent={
-        <View style={styles.summaryCard}>
-          <View style={styles.summaryTopRow}>
-            <Text style={styles.summaryKicker}>Positions</Text>
-            {chainLabel ? (
-              <View
-                style={[
-                  styles.summaryPill,
-                  {
-                    backgroundColor: chainTheme.backgroundColor,
-                    borderColor: chainTheme.borderColor,
-                  },
-                ]}>
-                <Text style={[styles.summaryPillText, {color: chainTheme.textColor}]}>
-                  {chainLabel}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-          <Text style={styles.summaryTitle}>{summaryTitle}</Text>
-          {summaryBody ? (
-            <Text style={styles.summaryBody}>{summaryBody}</Text>
-          ) : null}
-        </View>
-      }
-      renderItem={({item}) => <PositionCard position={item} />}
+      contentContainerStyle={[protocolPositions.length === 0 && styles.emptyContent, {paddingBottom: bottomPadding}]}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void loadPositions(true)} tintColor={colors.accent} />}
+      ListHeaderComponent={sectionHeader} ListHeaderComponentStyle={styles.listHeader} removeClippedSubviews={false}
+      renderItem={({item}) => <PositionCard position={item} narrow={narrow} />}
       ItemSeparatorComponent={() => <View style={styles.separator} />}
-      ListEmptyComponent={
-        <View style={styles.centerState}>
-          <Text style={styles.emptyTitle}>{emptyTitle}</Text>
-          <Text style={styles.stateText}>{emptyBody}</Text>
-        </View>
-      }
+      ListEmptyComponent={<WalletListState title={emptyTitle} body={emptyBody} />}
+      ListFooterComponent={hasRelevantPartial ? <DataQualityFooter text="Some positions unavailable" action="Retry"
+        onPress={() => void loadPositions(true)} /> : null}
       showsVerticalScrollIndicator={false}
     />
   );
 }
 
 const styles = StyleSheet.create({
-  centerState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
-  stateText: {
-    marginTop: 12,
-    fontSize: 15,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-  errorTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  errorText: {
-    marginTop: 10,
-    fontSize: 15,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-  retryButton: {
-    marginTop: 18,
-    backgroundColor: colors.primaryCtaFill,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderRadius: 999,
-  },
-  retryButtonText: {
-    color: colors.primaryCtaText,
-    fontWeight: '700',
-  },
-  emptyContent: {
-    flexGrow: 1,
-    paddingBottom: 28,
-  },
-  listContent: {
-    paddingBottom: 28,
-  },
-  summaryCard: {
-    backgroundColor: colors.card,
-    borderRadius: 22,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginTop: 6,
-    marginBottom: 8,
-  },
-  summaryTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  summaryKicker: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.textTertiary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  summaryPill: {
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: colors.elevated,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  summaryPillText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.textSecondary,
-  },
-  summaryTitle: {
-    marginTop: 6,
-    fontSize: 21,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  summaryBody: {
-    marginTop: 5,
-    fontSize: 13,
-    lineHeight: 17,
-    color: colors.textSecondary,
-  },
-  separator: {
-    height: 8,
-  },
-  emptyTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  positionCard: {
-    backgroundColor: colors.card,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 13,
-    paddingVertical: 10,
-  },
-  positionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  positionIdentity: {
-    flex: 1,
-    paddingRight: 12,
-  },
-  positionProtocol: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  positionAsset: {
-    marginTop: 2,
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  positionValueBlock: {
-    alignItems: 'flex-end',
-    minWidth: 94,
-  },
-  positionAmount: {
-    marginTop: 2,
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.textSecondary,
-  },
-  positionValueUsd: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  positionValueUnavailable: {
-    color: colors.textSecondary,
-  },
-  positionMetaRow: {
-    marginTop: 8,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 10,
-  },
-  positionMetaPills: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    flexShrink: 1,
-  },
-  metaPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: colors.elevated,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  positionMeta: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.textTertiary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-  },
-  positionMetaSecondary: {
-    fontSize: 10,
-    color: colors.textTertiary,
-  },
+  tabContent: {flex: 1}, emptyContent: {flexGrow: 1}, listHeader: {zIndex: 10}, separator: {height: 8},
+  positionCard: {minHeight: 74, backgroundColor: colors.card, borderRadius: 18, borderWidth: 1, borderColor: colors.border,
+    paddingHorizontal: 14, paddingVertical: 13},
+  positionCardNarrow: {paddingHorizontal: 13, paddingVertical: 11, borderRadius: 16},
+  positionHeader: {flexDirection: 'row', alignItems: 'baseline', gap: 13},
+  positionName: {flex: 1, minWidth: 0, fontSize: 15, fontWeight: '700', letterSpacing: -0.15, color: colors.textPrimary},
+  positionNameNarrow: {fontSize: 14.5},
+  positionValue: {fontSize: 16, lineHeight: 16, fontWeight: '800', letterSpacing: -0.32,
+    color: colors.textPrimary, fontVariant: ['tabular-nums'], textAlign: 'right'},
+  positionValueNarrow: {fontSize: 15.5}, unavailable: {color: colors.textTertiary},
+  positionMetaRow: {marginTop: 9, flexDirection: 'row', alignItems: 'center', gap: 7},
+  positionAmount: {flex: 1, fontSize: 11, color: colors.textTertiary, textAlign: 'right', fontVariant: ['tabular-nums']},
+  positionAmountNarrow: {fontSize: 10.5},
+  stateBadge: {height: 19, paddingHorizontal: 7, borderRadius: 6, backgroundColor: colors.neutralTint, justifyContent: 'center'},
+  stateText: {fontSize: 9, fontWeight: '600', letterSpacing: 0.54, color: colors.textSecondary},
+  rewardBadge: {backgroundColor: 'rgba(53,200,142,0.10)'}, rewardText: {color: colors.positive},
+  lockedBadge: {backgroundColor: 'rgba(240,166,60,0.10)'}, lockedText: {color: colors.warning},
 });

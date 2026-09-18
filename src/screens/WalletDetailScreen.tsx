@@ -1,7 +1,10 @@
 import React, {useEffect, useRef, useState} from 'react';
 import Clipboard from '@react-native-clipboard/clipboard';
-import Ionicons from 'react-native-vector-icons/Ionicons';
-import {ActivityIndicator, Pressable, StyleSheet, Text, View} from 'react-native';
+import {Platform, Pressable, StatusBar, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {WalletDetailSummary} from '../components/WalletDetailSummary';
+import {WalletIconButton, WalletMonitoringCard} from '../components/WalletDetailUI';
+import {WalletAlertSettingsScreen} from './WalletAlertSettingsScreen';
 import {SafeAreaScreen} from '../components/SafeAreaScreen';
 import {getWalletPerformance, type PortfolioPerformance} from '../api/performance';
 import {getWalletHoldings, type TokenHolding, type WalletHoldings} from '../api/holdings';
@@ -11,16 +14,15 @@ import {EventsScreen} from './EventsScreen';
 import {PositionsScreen} from './PositionsScreen';
 import type {Wallet} from '../types/wallet';
 import {getWalletPortfolioSummary, type WalletPortfolioSummary} from '../api/portfolioSummary';
-import {colors} from '../theme/colors';
-import {formatUsd, shortenAddress} from '../utils/format';
-import {formatChainDisplayName, formatWalletChainsLabel, getWalletEnabledChains} from '../utils/chains';
+import {walletDetailColors as colors, getWalletDetailLayout} from '../theme/walletDetail';
+import {formatChainDisplayName, getWalletEnabledChains} from '../utils/chains';
 import {
   getPerformanceUnavailableReason,
   getValidatedPerformance,
   logPortfolioBalanceDecision,
 } from '../utils/performance';
 
-export type DetailTab = 'tokens' | 'history' | 'positions';
+export type DetailTab = 'tokens' | 'history' | 'positions' | 'alerts';
 type NetworkFilterOption = {
   value: string | null;
   label: string;
@@ -396,7 +398,6 @@ export function WalletDetailScreen({
   const hasPerformanceHistory =
     validatedPerformance?.change != null &&
     validatedPerformance.changePercent != null;
-  const chainLabel = formatWalletChainsLabel(wallet.chainId, wallet.enabledChains);
   const networkOptions = getWalletEnabledChains(wallet.chainId, wallet.enabledChains).map((chainId) => ({
     value: chainId,
     label: formatChainDisplayName(chainId),
@@ -442,493 +443,137 @@ export function WalletDetailScreen({
     walletPerformance,
   ]);
 
-  return (
-    <SafeAreaScreen style={styles.screen} topPadding={styles.screen.paddingTop}>
-      <View style={styles.headerRow}>
-        <Pressable onPress={onBack} style={styles.headerButton} hitSlop={6}>
-          <Text style={styles.headerButtonText}>‹</Text>
-        </Pressable>
-
-        <Pressable style={styles.headerButtonAccent} onPress={onEdit} hitSlop={6}>
-          <Text style={styles.headerButtonAccentText}>✎</Text>
-        </Pressable>
-      </View>
-
-      <View style={styles.heroCard}>
-        <View style={styles.heroGlow} />
-        <View style={styles.identityRow}>
-          <View style={styles.identityTextBlock}>
-            <Text style={styles.title}>{wallet.label || 'Unnamed wallet'}</Text>
-            <View style={styles.addressRow}>
-              <Text numberOfLines={1} style={styles.addressLine}>
-                {shortenAddress(wallet.address)} • {chainLabel}
-              </Text>
-              <Pressable
-                accessibilityLabel={addressCopied ? 'Wallet address copied' : 'Copy wallet address'}
-                accessibilityRole="button"
-                hitSlop={6}
-                onPress={handleCopyWalletAddress}
-                style={({pressed}) => [
-                  styles.addressCopyButton,
-                  pressed ? styles.addressCopyButtonPressed : null,
-                ]}>
-                <Ionicons
-                  name={addressCopied ? 'checkmark-outline' : 'copy-outline'}
-                  size={13}
-                  color={addressCopied ? colors.positive : colors.textSecondary}
-                />
-                {addressCopied ? <Text style={styles.addressCopiedText}>Copied</Text> : null}
+  const {width, fontScale} = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const layout = getWalletDetailLayout(width);
+  // App's root consumes iOS bottom insets; Android lists consume their own.
+  const bottomPadding = (Platform.OS === 'android' ? insets.bottom : 0) + 16;
+  const networkFilter = (
+    <View style={styles.networkDropdownContainer}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Filter by network"
+        accessibilityState={{expanded: networkMenuOpen}}
+        style={styles.networkDropdownButton}
+        onPress={() => setNetworkMenuOpen(current => !current)}>
+        <Text style={[styles.networkDropdownButtonText, layout.narrow && styles.networkTypeNarrow]}>{selectedNetworkLabel}</Text>
+        <Text style={styles.networkDropdownChevron}>{networkMenuOpen ? '▴' : '▾'}</Text>
+      </Pressable>
+      {networkMenuOpen ? (
+        <View style={styles.networkDropdownMenu}>
+          {allNetworkOptions.map(option => {
+            const selected = option.value === selectedNetwork;
+            return (
+              <Pressable key={option.value ?? 'all-networks'} accessibilityRole="button"
+                accessibilityState={{selected}}
+                style={[styles.networkDropdownItem, selected && styles.networkDropdownItemActive]}
+                onPress={() => {
+                  setSelectedNetwork(option.value);
+                  setNetworkMenuOpen(false);
+                }}>
+                <Text style={[styles.networkDropdownItemText, selected && styles.networkDropdownItemTextActive]}>{option.label}</Text>
               </Pressable>
-            </View>
-          </View>
+            );
+          })}
         </View>
+      ) : null}
+    </View>
+  );
 
-        <View style={styles.portfolioInlineBlock}>
-          {portfolioLoading ? (
-            <View style={styles.portfolioLoadingRow}>
-              <ActivityIndicator size="small" color={colors.accent} />
-              <Text style={styles.portfolioLoadingText}>Loading portfolio totals...</Text>
-            </View>
-          ) : (
-            <>
-              <Text style={styles.summaryTotalValue}>
-                {formatUsd(
-                  liveTotalValue,
-                  filteredTotalsLoading ? 'Loading...' : 'Balance unavailable',
-                )}
-              </Text>
-              {selectedNetwork == null && hasPerformanceHistory ? (
-                <Text
-                  style={[
-                    styles.performanceText,
-                    validatedPerformance.change >= 0
-                      ? styles.performancePositive
-                      : styles.performanceNegative,
-                  ]}>
-                  {validatedPerformance.change >= 0 ? '+' : ''}
-                  {formatUsd(validatedPerformance.change, '')} ·{' '}
-                  {validatedPerformance.changePercent >= 0 ? '+' : ''}
-                  {validatedPerformance.changePercent.toFixed(2)}%
-                </Text>
-              ) : filteredTotalsLoading ? (
-                <Text style={styles.performanceCollecting}>Loading {selectedNetworkLabel} totals...</Text>
-              ) : selectedNetwork != null ? (
-                <Text style={styles.performanceCollecting}>24h performance is available for All Networks only</Text>
-              ) : (
-                <Text style={styles.performanceCollecting}>{performanceUnavailableText}</Text>
-              )}
-              <View style={styles.allocationBar}>
-                <View style={[styles.allocationFillHoldings, {flex: holdingsFlex}]} />
-                <View style={[styles.allocationFillPositions, {flex: positionsFlex}]} />
-              </View>
-              <View style={styles.allocationLegendRow}>
-                <View style={styles.allocationLegendItem}>
-                  <View style={styles.allocationDotHoldings} />
-                  <View>
-                    <Text style={styles.allocationLabel}>Holdings</Text>
-                    <Text style={styles.allocationValue}>
-                      {formatUsd(
-                        holdingsValue,
-                        holdingsStatusText === 'Loading' ? 'Loading...' : 'Unavailable',
-                      )}
-                    </Text>
-                    {holdingsStatusText ? (
-                      <Text style={styles.allocationHint}>{holdingsStatusText}</Text>
-                    ) : null}
-                  </View>
-                </View>
-                <View style={styles.allocationLegendItem}>
-                  <View style={styles.allocationDotPositions} />
-                  <View>
-                    <Text style={styles.allocationLabel}>Positions</Text>
-                    <Text style={styles.allocationValue}>
-                      {formatUsd(
-                        positionsValue,
-                        positionsStatusText === 'Loading' ? 'Loading...' : 'Unavailable',
-                      )}
-                    </Text>
-                    {positionsStatusText ? (
-                      <Text style={styles.allocationHint}>{positionsStatusText}</Text>
-                    ) : null}
-                  </View>
-                </View>
-              </View>
-            </>
-          )}
-        </View>
+  return (
+    <SafeAreaScreen style={[styles.screen, {paddingHorizontal: layout.gutter}]}>
+      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
+      <View style={[styles.headerRow, {height: layout.headerHeight, gap: layout.headerGap}]}>
+        <WalletIconButton name="chevron-back" label="Back" narrow={layout.narrow} onPress={onBack} />
+        <Text numberOfLines={1} maxFontSizeMultiplier={1.2} style={styles.headerTitle}>{wallet.label || 'Unnamed wallet'}</Text>
+        <WalletIconButton name="ellipsis-horizontal" label="Edit wallet" narrow={layout.narrow} onPress={onEdit} />
       </View>
-
-      <View style={styles.networkFilterWrap}>
-        <View style={styles.networkDropdownContainer}>
-          <Pressable
-            style={styles.networkDropdownButton}
-            onPress={() => setNetworkMenuOpen((current) => !current)}>
-            <Text style={styles.networkDropdownButtonText}>{selectedNetworkLabel}</Text>
-            <Text style={styles.networkDropdownChevron}>{networkMenuOpen ? '▴' : '▾'}</Text>
+      <View style={{paddingTop: layout.listTop}}>
+        <WalletDetailSummary wallet={wallet} narrow={layout.narrow} loading={portfolioLoading}
+          balance={liveTotalValue} balanceFallback={filteredTotalsLoading ? 'Loading…' : 'Balance unavailable'}
+          delta={selectedNetwork == null && hasPerformanceHistory ? validatedPerformance.change : null}
+          performanceReason={selectedNetwork != null ? '24h performance is available for All Networks only' : performanceUnavailableText}
+          holdings={holdingsValue} positions={positionsValue}
+          holdingsStatus={holdingsStatusText} positionsStatus={positionsStatusText}
+          holdingsFlex={holdingsFlex} positionsFlex={positionsFlex}
+          copied={addressCopied} onCopy={handleCopyWalletAddress} />
+      </View>
+      <WalletMonitoringCard narrow={layout.narrow} fontScale={fontScale} onPress={() => setActiveTab('alerts')} />
+      <View accessibilityRole="tablist" style={[styles.tabsRow, layout.narrow && styles.tabsRowNarrow]}>
+        <View pointerEvents="none" style={[styles.tabsBackground, layout.narrow && styles.tabsBackgroundNarrow]} />
+        {(['tokens', 'positions', 'history', 'alerts'] as const).map(tab => (
+          <Pressable key={tab} accessibilityRole="tab" accessibilityState={{selected: activeTab === tab}}
+            onPress={() => setActiveTab(tab)} style={styles.tabTarget}>
+            {({pressed}) => (
+              <View collapsable={false} style={[styles.tabButton, layout.narrow && styles.tabButtonNarrow,
+                activeTab === tab && styles.tabButtonActive,
+                pressed && activeTab !== tab && styles.tabButtonPressed]}>
+                <Text maxFontSizeMultiplier={1.2} style={[styles.tabText, layout.narrow && styles.tabTextNarrow,
+                  activeTab === tab && styles.tabTextActive]}>{tab.charAt(0).toUpperCase() + tab.slice(1)}</Text>
+              </View>
+            )}
           </Pressable>
-          {networkMenuOpen ? (
-            <View style={styles.networkDropdownMenu}>
-              {allNetworkOptions.map((option) => {
-                const selected = option.value === selectedNetwork;
-
-                return (
-                  <Pressable
-                    key={option.value ?? 'all-networks'}
-                    style={[styles.networkDropdownItem, selected ? styles.networkDropdownItemActive : null]}
-                    onPress={() => {
-                      setSelectedNetwork(option.value);
-                      setNetworkMenuOpen(false);
-                    }}>
-                    <Text style={[styles.networkDropdownItemText, selected ? styles.networkDropdownItemTextActive : null]}>
-                      {option.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          ) : null}
-        </View>
+        ))}
       </View>
-
-      <View style={styles.tabsRow}>
-        <Pressable
-          style={[styles.tabButton, activeTab === 'tokens' && styles.tabButtonActive]}
-          onPress={() => setActiveTab('tokens')}>
-          <Text style={[styles.tabText, activeTab === 'tokens' && styles.tabTextActive]}>Tokens</Text>
-        </Pressable>
-        <Pressable
-          style={[styles.tabButton, activeTab === 'history' && styles.tabButtonActive]}
-          onPress={() => setActiveTab('history')}>
-          <Text style={[styles.tabText, activeTab === 'history' && styles.tabTextActive]}>History</Text>
-        </Pressable>
-        <Pressable
-          style={[styles.tabButton, activeTab === 'positions' && styles.tabButtonActive]}
-          onPress={() => setActiveTab('positions')}>
-          <Text style={[styles.tabText, activeTab === 'positions' && styles.tabTextActive]}>Positions</Text>
-        </Pressable>
-      </View>
-
       <View style={styles.content}>
         {activeTab === 'tokens' ? (
-          <TokensScreen
-            walletId={wallet.id}
-            selectedChainId={selectedNetwork}
+          <TokensScreen walletId={wallet.id} selectedChainId={selectedNetwork}
             prefetchedHoldings={walletHoldings}
             prefetchedHoldingsLoading={holdingsLoading || (shouldLoadRawHoldings && walletHoldings == null)}
-          />
+            networkFilter={networkFilter} narrow={layout.narrow} bottomPadding={bottomPadding} fontScale={fontScale} />
         ) : null}
         {activeTab === 'history' ? (
-          <EventsScreen
-            key={wallet.id}
-            walletId={wallet.id}
-            selectedChainId={selectedNetwork}
-            targetEventId={targetEventId}
-            targetOpenKey={targetOpenKey}
-            onTargetConsumed={onTargetConsumed}
-          />
+          <EventsScreen key={wallet.id} walletId={wallet.id} selectedChainId={selectedNetwork}
+            targetEventId={targetEventId} targetOpenKey={targetOpenKey} onTargetConsumed={onTargetConsumed}
+            networkFilter={networkFilter} narrow={layout.narrow} bottomPadding={bottomPadding} />
         ) : null}
         {activeTab === 'positions' ? (
-          <PositionsScreen
-            walletId={wallet.id}
-            selectedChainId={selectedNetwork}
+          <PositionsScreen walletId={wallet.id} selectedChainId={selectedNetwork}
             prefetchedPositions={walletPositions}
             prefetchedPositionsLoading={positionsLoading || (shouldLoadRawPositions && walletPositions == null)}
-          />
+            networkFilter={networkFilter} narrow={layout.narrow} bottomPadding={bottomPadding} />
+        ) : null}
+        {activeTab === 'alerts' ? (
+          <WalletAlertSettingsScreen wallet={wallet} onBack={onEdit} embedded bottomPadding={bottomPadding} />
         ) : null}
       </View>
+      {addressCopied ? (
+        <View pointerEvents="none" accessibilityLiveRegion="polite" style={[styles.copyToast, {bottom: bottomPadding}]}>
+          <Text style={styles.copyToastText}>Wallet address copied</Text>
+        </View>
+      ) : null}
     </SafeAreaScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-    paddingHorizontal: 18,
-    paddingTop: 16,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  headerButton: {
-    width: 44,
-    height: 44,
-    backgroundColor: colors.elevated,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerButtonText: {
-    color: colors.textPrimary,
-    fontWeight: '700',
-    fontSize: 20,
-  },
-  headerButtonAccent: {
-    width: 44,
-    height: 44,
-    backgroundColor: colors.elevated,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerButtonAccentText: {
-    color: colors.textPrimary,
-    fontWeight: '800',
-    fontSize: 16,
-  },
-  heroCard: {
-    position: 'relative',
-    overflow: 'hidden',
-    marginTop: 6,
-    marginBottom: 6,
-    borderRadius: 22,
-    backgroundColor: colors.card,
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  heroGlow: {
-    position: 'absolute',
-    top: -24,
-    right: -18,
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: colors.elevated,
-    opacity: 0.65,
-  },
-  identityRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  identityTextBlock: {
-    flex: 1,
-  },
-  title: {
-    fontSize: 22,
-    lineHeight: 25,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  addressLine: {
-    flexShrink: 1,
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  addressRow: {
-    marginTop: 4,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  addressCopyButton: {
-    minWidth: 28,
-    height: 24,
-    paddingHorizontal: 6,
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    backgroundColor: colors.elevated,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  addressCopyButtonPressed: {
-    opacity: 0.7,
-  },
-  addressCopiedText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: colors.positive,
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
-  },
-  portfolioInlineBlock: {
-    marginTop: 8,
-  },
-  portfolioLoadingRow: {
-    marginTop: 6,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  portfolioLoadingText: {
-    marginLeft: 10,
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  summaryTotalValue: {
-    marginTop: 2,
-    fontSize: 28,
-    lineHeight: 31,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  allocationBar: {
-    marginTop: 6,
-    height: 6,
-    borderRadius: 999,
-    overflow: 'hidden',
-    flexDirection: 'row',
-    backgroundColor: colors.background,
-  },
-  allocationFillHoldings: {
-    backgroundColor: colors.primaryCtaFill,
-  },
-  allocationFillPositions: {
-    backgroundColor: colors.accent,
-  },
-  allocationLegendRow: {
-    marginTop: 6,
-    flexDirection: 'row',
-    gap: 16,
-  },
-  performanceText: {
-    marginTop: 4,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  performancePositive: {
-    color: colors.positive,
-  },
-  performanceNegative: {
-    color: colors.negative,
-  },
-  performanceCollecting: {
-    marginTop: 4,
-    fontSize: 12,
-    color: colors.textSecondary,
-    lineHeight: 17,
-  },
-  allocationLegendItem: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-  },
-  allocationDotHoldings: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: colors.primaryCtaFill,
-  },
-  allocationDotPositions: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: colors.accent,
-  },
-  allocationLabel: {
-    fontSize: 11,
-    color: colors.textTertiary,
-  },
-  allocationValue: {
-    marginTop: 1,
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  allocationHint: {
-    marginTop: 2,
-    fontSize: 10,
-    lineHeight: 12,
-    color: colors.textSecondary,
-  },
-  networkFilterWrap: {
-    marginBottom: 6,
-    zIndex: 20,
-  },
-  networkDropdownContainer: {
-    position: 'relative',
-  },
-  networkDropdownButton: {
-    minHeight: 34,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.elevated,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  networkDropdownButtonText: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  networkDropdownChevron: {
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  networkDropdownMenu: {
-    position: 'absolute',
-    top: 40,
-    left: 0,
-    right: 0,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
-    overflow: 'hidden',
-  },
-  networkDropdownItem: {
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  networkDropdownItemActive: {
-    backgroundColor: colors.elevated,
-  },
-  networkDropdownItemText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    fontWeight: '600',
-  },
-  networkDropdownItemTextActive: {
-    color: colors.textPrimary,
-    fontWeight: '700',
-  },
-  tabsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 6,
-    borderRadius: 18,
-    padding: 3,
-    backgroundColor: colors.elevated,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  tabButton: {
-    flex: 1,
-    borderRadius: 14,
-    paddingVertical: 7,
-    alignItems: 'center',
-  },
-  tabButtonActive: {
-    backgroundColor: colors.card,
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.textTertiary,
-  },
-  tabTextActive: {
-    color: colors.textPrimary,
-  },
-  content: {
-    flex: 1,
-  },
+  screen: {flex: 1, backgroundColor: colors.background},
+  headerRow: {flexDirection: 'row', alignItems: 'center'},
+  headerTitle: {flex: 1, fontSize: 16, fontWeight: '700', letterSpacing: -0.16, color: colors.textPrimary},
+  networkDropdownContainer: {position: 'relative', zIndex: 20},
+  networkDropdownButton: {minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 7},
+  networkDropdownButtonText: {fontSize: 12.5, fontWeight: '500', color: colors.textSecondary},
+  networkTypeNarrow: {fontSize: 12},
+  networkDropdownChevron: {fontSize: 12, color: colors.textTertiary},
+  networkDropdownMenu: {position: 'absolute', top: 44, right: 0, minWidth: 168, padding: 4,
+    borderRadius: 14, backgroundColor: colors.elevated, borderWidth: 1, borderColor: colors.iconBorder, zIndex: 30},
+  networkDropdownItem: {minHeight: 44, paddingHorizontal: 12, justifyContent: 'center', borderRadius: 11},
+  networkDropdownItemActive: {backgroundColor: colors.selected},
+  networkDropdownItemText: {fontSize: 12.5, color: colors.textSecondary},
+  networkDropdownItemTextActive: {color: colors.textPrimary, fontWeight: '700'},
+  tabsRow: {marginTop: 13, height: 44, paddingHorizontal: 5, gap: 2, flexDirection: 'row', alignItems: 'center'},
+  tabsRowNarrow: {marginTop: 10},
+  tabsBackground: {position: 'absolute', top: 1, left: 0, right: 0, height: 42, borderRadius: 14,
+    backgroundColor: colors.card, borderWidth: 1, borderColor: colors.tabBorder},
+  tabsBackgroundNarrow: {top: 2, height: 40, borderRadius: 13},
+  tabTarget: {flex: 1, minWidth: 44, height: 44, alignItems: 'center', justifyContent: 'center'},
+  tabButton: {width: '100%', height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center'},
+  tabButtonNarrow: {height: 32, borderRadius: 10},
+  tabButtonActive: {backgroundColor: colors.selected},
+  tabButtonPressed: {opacity: 0.7},
+  tabText: {fontSize: 13, fontWeight: '700', color: colors.tabInactive},
+  tabTextNarrow: {fontSize: 12.5},
+  tabTextActive: {color: colors.textPrimary},
+  content: {flex: 1},
+  copyToast: {position: 'absolute', alignSelf: 'center', backgroundColor: colors.selected,
+    borderRadius: 11, paddingVertical: 10, paddingHorizontal: 16, borderWidth: 1, borderColor: colors.border},
+  copyToastText: {fontSize: 12.5, fontWeight: '500', color: colors.textPrimary},
 });

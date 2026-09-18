@@ -1,6 +1,5 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   Pressable,
   RefreshControl,
@@ -10,7 +9,8 @@ import {
 } from 'react-native';
 import {getWalletHoldings, type TokenHolding, type WalletHoldings} from '../api/holdings';
 import {TokenHoldingCard} from '../components/TokenHoldingCard';
-import {colors} from '../theme/colors';
+import {walletDetailColors as colors} from '../theme/walletDetail';
+import {DataQualityFooter, WalletSectionHeader, WalletListLoading, WalletListState} from '../components/WalletDetailUI';
 import {formatUsd} from '../utils/format';
 import {isCanonicalProtectedTokenAddress} from '../utils/chains';
 
@@ -19,6 +19,10 @@ type TokensScreenProps = {
   selectedChainId?: string | null;
   prefetchedHoldings?: WalletHoldings | null;
   prefetchedHoldingsLoading?: boolean;
+  networkFilter?: React.ReactNode;
+  narrow?: boolean;
+  bottomPadding?: number;
+  fontScale?: number;
 };
 
 function formatTotalBalanceUsd(value: number | null) {
@@ -118,6 +122,10 @@ export function TokensScreen({
   selectedChainId = null,
   prefetchedHoldings = null,
   prefetchedHoldingsLoading = false,
+  networkFilter,
+  narrow = false,
+  bottomPadding = 16,
+  fontScale = 1,
 }: TokensScreenProps) {
   const [holdings, setHoldings] = useState<WalletHoldings | null>(prefetchedHoldings);
   const [loading, setLoading] = useState(prefetchedHoldings ? false : prefetchedHoldingsLoading || true);
@@ -195,18 +203,6 @@ export function TokensScreen({
   );
   const hasAnyHoldings = filteredHoldings.length > 0;
   const hasVisibleHoldings = visibleTokenHoldings.length > 0;
-  const summaryBodyText = totalBalanceText
-    ? null
-    : hasAnyHoldings
-      ? 'Pricing temporarily unavailable.'
-      : 'No direct token balances yet.';
-  const summaryStatusText = tokenBalancesAvailable
-    ? hasAnyHoldings
-      ? 'Live holdings'
-      : 'No balances yet'
-    : tokenBalancesReason === 'TOKEN_BALANCES_RATE_LIMITED'
-      ? 'Partial data'
-      : 'Data limited';
   const summaryNoticeText = !tokenBalancesAvailable
     ? tokenBalancesReason === 'TOKEN_BALANCES_RATE_LIMITED'
       ? 'Token balances are temporarily rate-limited. Native assets may still be shown.'
@@ -215,133 +211,80 @@ export function TokensScreen({
       ? 'Token balances loaded, but pricing is unavailable right now.'
       : null;
 
-  if (spinnerVisible) {
-    return (
-      <View style={styles.centerState}>
-        <ActivityIndicator size="large" color={colors.accent} />
-        <Text style={styles.stateText}>Loading holdings...</Text>
-      </View>
-    );
-  }
+  const sectionHeader = <WalletSectionHeader
+    label={effectiveHoldings ? `${visibleTokenHoldings.length} token${visibleTokenHoldings.length === 1 ? '' : 's'}` : 'Tokens'}
+    networkFilter={networkFilter} narrow={narrow} />;
 
-  if (error) {
-    return (
-      <View style={styles.centerState}>
-        <Text style={styles.errorTitle}>Could not load holdings</Text>
-        <Text style={styles.errorText}>{error}</Text>
-        <Pressable style={styles.retryButton} onPress={() => void loadHoldings()}>
-          <Text style={styles.retryButtonText}>Try again</Text>
-        </Pressable>
-      </View>
-    );
+  if (spinnerVisible) {
+    return <View style={styles.tabContent}>{sectionHeader}<WalletListLoading label="Loading holdings" narrow={narrow} /></View>;
   }
+  if (error) {
+    return <View style={styles.tabContent}>{sectionHeader}<WalletListState title="Could not load holdings" body={error}
+      onRetry={() => void loadHoldings()} /></View>;
+  }
+  const hiddenCount = lowValueTokenHoldings.length;
+  const flaggedCount = suspiciousTokenHoldings.length;
+  const hasHidden = hiddenCount > 0 || flaggedCount > 0;
+  const degraded = !tokenBalancesAvailable || (totalBalanceText == null && hasAnyHoldings);
+  const qualityText = hasHidden ? `${hiddenCount} low-value hidden · ${flaggedCount} flagged`
+      : degraded ? 'Some balances unavailable' : filteredHoldings.every(holding => holding.balanceUsd != null)
+        ? `Nothing hidden — all ${filteredHoldings.length} tokens priced`
+        : 'Some token prices unavailable';
 
   return (
     <FlatList
       data={visibleTokenHoldings}
       keyExtractor={item => `${item.chainId ?? 'unknown'}:${item.tokenAddress ?? 'native-eth'}`}
-      contentContainerStyle={
-        visibleTokenHoldings.length === 0 &&
-        lowValueTokenHoldings.length === 0 &&
-        suspiciousTokenHoldings.length === 0
-          ? styles.emptyContent
-          : styles.listContent
-      }
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={() => void loadHoldings(true)} tintColor={colors.accent} />
-      }
-      ListHeaderComponent={
-        <View style={styles.summaryCard}>
-          <View style={styles.summaryTopRow}>
-            <Text style={styles.summaryKicker}>Net worth</Text>
-            <View style={styles.summaryStatusPill}>
-              <Text style={styles.summaryStatusText}>{summaryStatusText}</Text>
-            </View>
-          </View>
-          <Text style={styles.summaryTitle}>{totalBalanceText || 'Balance unavailable'}</Text>
-          {summaryBodyText ? (
-            <Text style={styles.summaryBody}>{summaryBodyText}</Text>
-          ) : null}
-          {summaryNoticeText ? (
-            <View style={styles.summaryNotice}>
-              <Text style={styles.summaryNoticeText}>{summaryNoticeText}</Text>
-            </View>
-          ) : null}
-        </View>
-      }
-      renderItem={({item}) => <TokenHoldingCard holding={item} />}
+      contentContainerStyle={[!hasAnyHoldings && styles.emptyContent, {paddingBottom: bottomPadding}]}
+      ListHeaderComponent={sectionHeader} ListHeaderComponentStyle={styles.listHeader}
+      removeClippedSubviews={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void loadHoldings(true)} tintColor={colors.accent} />}
+      renderItem={({item}) => <TokenHoldingCard holding={item} narrow={narrow} />}
       ItemSeparatorComponent={() => <View style={styles.separator} />}
-      ListEmptyComponent={
-        !hasVisibleHoldings && lowValueTokenHoldings.length === 0 && suspiciousTokenHoldings.length === 0 ? (
-          <View style={styles.centerState}>
-            <Text style={styles.emptyTitle}>No token holdings yet</Text>
-            <Text style={styles.stateText}>
-              {tokenBalancesAvailable
-                ? 'This wallet does not have direct token balances available from the current provider.'
-                : 'Token balances are temporarily limited right now. Pull to refresh and try again shortly.'}
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.mainListEmptyState}>
-            <Text style={styles.mainListEmptyTitle}>Main token list is clean</Text>
-            <Text style={styles.stateText}>Only low value or suspicious tokens were found for this wallet. You can inspect them below if needed.</Text>
-          </View>
-        )
-      }
+      ListEmptyComponent={!hasVisibleHoldings ? (
+        <WalletListState title={hasAnyHoldings ? 'Main token list is clean' : 'No token holdings yet'}
+          body={hasAnyHoldings ? 'Only low value or suspicious tokens were found. Review them below.'
+            : tokenBalancesAvailable ? 'This wallet does not have direct token balances available from the current provider.'
+              : 'Token balances are temporarily limited right now. Pull to refresh and try again shortly.'} />
+      ) : null}
       ListFooterComponent={
         <>
-          {lowValueTokenHoldings.length > 0 ? (
-            <View style={styles.lowValueSection}>
-              <Pressable style={styles.lowValueHeader} onPress={() => setShowLowValueTokens((current) => !current)}>
-                <View style={styles.lowValueHeaderTextBlock}>
-                  <Text style={styles.lowValueTitle}>Low value tokens</Text>
-                  <Text style={styles.lowValueSubtitle}>
-                    {lowValueTokenHoldings.length} token{lowValueTokenHoldings.length === 1 ? '' : 's'} moved out of the main list to keep your portfolio view cleaner. Their value still counts toward the total when priced.
-                  </Text>
-                </View>
-                <Text style={styles.lowValueToggle}>{showLowValueTokens ? 'Hide' : 'Show'}</Text>
+          <DataQualityFooter text={qualityText} fontScale={fontScale}
+            action={hasHidden ? 'Review' : degraded ? 'Retry' : undefined}
+            onPress={hasHidden ? () => {
+              const show = !(showLowValueTokens || showSuspiciousTokens);
+              setShowLowValueTokens(show);
+              setShowSuspiciousTokens(show);
+            } : () => void loadHoldings(true)} />
+          {hasHidden && degraded ? <DataQualityFooter text="Some balances unavailable" action="Retry"
+            onPress={() => void loadHoldings(true)} fontScale={fontScale} /> : null}
+          {summaryNoticeText ? <Text style={styles.notice}>{summaryNoticeText}</Text> : null}
+          {showLowValueTokens && hiddenCount > 0 ? (
+            <View style={styles.reviewSection}>
+              <Pressable accessibilityRole="button" style={styles.reviewHeader} onPress={() => setShowLowValueTokens(false)}>
+                <Text style={styles.reviewTitle}>{hiddenCount} low value tokens</Text><Text style={styles.reviewAction}>Hide</Text>
               </Pressable>
-
-              {showLowValueTokens ? (
-                <View style={styles.lowValueList}>
-                  {lowValueTokenHoldings.map((holding, index) => (
-                    <View key={`${holding.chainId ?? 'unknown'}:${holding.tokenAddress ?? 'low-value-' + index}`}>
-                      <TokenHoldingCard holding={holding} subdued />
-                      {index < lowValueTokenHoldings.length - 1 ? <View style={styles.separator} /> : null}
-                    </View>
-                  ))}
+              {lowValueTokenHoldings.map((holding, index) => (
+                <View key={`${holding.chainId ?? 'unknown'}:${holding.tokenAddress ?? 'low-value-' + index}`}>
+                  <TokenHoldingCard holding={holding} subdued narrow={narrow} />
+                  {index < hiddenCount - 1 ? <View style={styles.separator} /> : null}
                 </View>
-              ) : null}
+              ))}
             </View>
           ) : null}
-
-          {suspiciousTokenHoldings.length > 0 ? (
-            <View style={styles.suspiciousSection}>
-              <Pressable style={styles.suspiciousHeader} onPress={() => setShowSuspiciousTokens((current) => !current)}>
-                <View style={styles.suspiciousHeaderTextBlock}>
-                  <Text style={styles.suspiciousTitle}>Suspicious tokens</Text>
-                  <Text style={styles.suspiciousSubtitle}>
-                    {suspiciousTokenHoldings.length} token{suspiciousTokenHoldings.length === 1 ? '' : 's'} flagged by basic heuristics. Suspicious tokens are excluded from total balance.
-                  </Text>
-                </View>
-                <Text style={styles.suspiciousToggle}>{showSuspiciousTokens ? 'Hide' : 'Show'}</Text>
+          {showSuspiciousTokens && flaggedCount > 0 ? (
+            <View style={styles.reviewSection}>
+              <Pressable accessibilityRole="button" style={styles.reviewHeader} onPress={() => setShowSuspiciousTokens(false)}>
+                <Text style={styles.reviewTitle}>{flaggedCount} suspicious tokens</Text><Text style={styles.reviewAction}>Hide</Text>
               </Pressable>
-
-              {showSuspiciousTokens ? (
-                <View style={styles.suspiciousList}>
-                  {suspiciousTokenHoldings.map((holding, index) => (
-                    <View key={`${holding.chainId ?? 'unknown'}:${holding.tokenAddress ?? 'suspicious-native-' + index}`}>
-                      <TokenHoldingCard holding={holding} subdued />
-                      {holding.suspicionReasons.length > 0 ? (
-                        <Text style={styles.suspicionReasonText}>
-                          {holding.suspicionReasons.map(renderSuspicionReason).join(' · ')}
-                        </Text>
-                      ) : null}
-                      {index < suspiciousTokenHoldings.length - 1 ? <View style={styles.separator} /> : null}
-                    </View>
-                  ))}
+              <Text style={styles.notice}>Suspicious tokens are excluded from total balance.</Text>
+              {suspiciousTokenHoldings.map((holding, index) => (
+                <View key={`${holding.chainId ?? 'unknown'}:${holding.tokenAddress ?? 'suspicious-native-' + index}`}>
+                  <TokenHoldingCard holding={holding} subdued narrow={narrow} />
+                  {holding.suspicionReasons.length > 0 ? <Text style={styles.notice}>{holding.suspicionReasons.map(renderSuspicionReason).join(' · ')}</Text> : null}
+                  {index < flaggedCount - 1 ? <View style={styles.separator} /> : null}
                 </View>
-              ) : null}
+              ))}
             </View>
           ) : null}
         </>
@@ -352,210 +295,13 @@ export function TokensScreen({
 }
 
 const styles = StyleSheet.create({
-  centerState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
-  stateText: {
-    marginTop: 12,
-    fontSize: 15,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-  errorTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  errorText: {
-    marginTop: 10,
-    fontSize: 15,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-  retryButton: {
-    marginTop: 18,
-    backgroundColor: colors.primaryCtaFill,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderRadius: 999,
-  },
-  retryButtonText: {
-    color: colors.primaryCtaText,
-    fontWeight: '700',
-  },
-  emptyContent: {
-    flexGrow: 1,
-    paddingBottom: 28,
-  },
-  listContent: {
-    paddingBottom: 28,
-  },
-  summaryCard: {
-    backgroundColor: colors.card,
-    borderRadius: 22,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginTop: 4,
-    marginBottom: 8,
-  },
-  summaryTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  summaryKicker: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.textTertiary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  summaryStatusPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-    backgroundColor: colors.elevated,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  summaryStatusText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.textSecondary,
-  },
-  summaryTitle: {
-    marginTop: 4,
-    fontSize: 20,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  summaryBody: {
-    marginTop: 4,
-    fontSize: 13,
-    lineHeight: 16,
-    color: colors.textSecondary,
-  },
-  summaryNotice: {
-    marginTop: 6,
-    borderRadius: 14,
-    backgroundColor: colors.elevated,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  summaryNoticeText: {
-    fontSize: 11,
-    lineHeight: 15,
-    color: colors.textSecondary,
-  },
-  separator: {
-    height: 8,
-  },
-  emptyTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  mainListEmptyState: {
-    paddingHorizontal: 8,
-    paddingBottom: 12,
-  },
-  mainListEmptyTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    textAlign: 'center',
-  },
-  suspiciousSection: {
-    marginTop: 14,
-    paddingTop: 4,
-  },
-  lowValueSection: {
-    marginTop: 14,
-    paddingTop: 4,
-  },
-  lowValueHeader: {
-    backgroundColor: colors.elevated,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 16,
-    paddingVertical: 11,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  lowValueHeaderTextBlock: {
-    flex: 1,
-  },
-  lowValueTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  lowValueSubtitle: {
-    marginTop: 3,
-    fontSize: 12,
-    lineHeight: 17,
-    color: colors.textSecondary,
-  },
-  lowValueToggle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.textSecondary,
-  },
-  lowValueList: {
-    marginTop: 8,
-  },
-  suspiciousHeader: {
-    backgroundColor: colors.elevated,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 16,
-    paddingVertical: 11,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  suspiciousHeaderTextBlock: {
-    flex: 1,
-    paddingRight: 12,
-  },
-  suspiciousTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  suspiciousSubtitle: {
-    marginTop: 3,
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.textSecondary,
-  },
-  suspiciousToggle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  suspiciousList: {
-    marginTop: 12,
-  },
-  suspicionReasonText: {
-    marginTop: 6,
-    marginBottom: 2,
-    marginHorizontal: 6,
-    fontSize: 12,
-    lineHeight: 16,
-    color: colors.textTertiary,
-    textTransform: 'capitalize',
-  },
+  tabContent: {flex: 1},
+  emptyContent: {flexGrow: 1},
+  listHeader: {zIndex: 10},
+  separator: {height: 8},
+  notice: {marginTop: 8, marginBottom: 8, fontSize: 12.5, fontWeight: '500', lineHeight: 18, color: colors.textTertiary},
+  reviewSection: {marginTop: 14},
+  reviewHeader: {minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'},
+  reviewTitle: {fontSize: 13.5, fontWeight: '700', color: colors.textPrimary},
+  reviewAction: {fontSize: 12.5, fontWeight: '700', color: colors.textSecondary},
 });

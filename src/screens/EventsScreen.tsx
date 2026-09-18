@@ -1,12 +1,9 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   ListRenderItem,
-  Pressable,
   RefreshControl,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
 import {
@@ -17,7 +14,8 @@ import {
 import {EventCard} from '../components/EventCard';
 import {EventDetailModal} from '../components/EventDetailModal';
 import {TransactionActivityCard} from '../components/TransactionActivityCard';
-import {colors} from '../theme/colors';
+import {walletDetailColors as colors} from '../theme/walletDetail';
+import {WalletSectionHeader, WalletListLoading, WalletListState} from '../components/WalletDetailUI';
 import {formatEventDayLabel, getEventDayKey} from '../utils/format';
 import {
   resolveEventTarget,
@@ -30,6 +28,9 @@ type EventsScreenProps = {
   targetEventId?: string | null;
   targetOpenKey?: number;
   onTargetConsumed?: (openKey: number) => void;
+  networkFilter?: React.ReactNode;
+  narrow?: boolean;
+  bottomPadding?: number;
 };
 
 type EventListItem =
@@ -76,6 +77,9 @@ export function EventsScreen({
   targetEventId,
   targetOpenKey,
   onTargetConsumed,
+  networkFilter,
+  narrow = false,
+  bottomPadding = 16,
 }: EventsScreenProps) {
   const [events, setEvents] = useState<WalletHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -178,62 +182,49 @@ export function EventsScreen({
   ]);
 
   if (loading) {
-    return (
-      <View style={styles.centerState}>
-        <ActivityIndicator size="large" color={colors.accent} />
-        <Text style={styles.stateText}>Loading history...</Text>
-      </View>
-    );
+    return <View style={styles.tabContent}><WalletSectionHeader label="History" networkFilter={networkFilter} narrow={narrow} />
+      <WalletListLoading label="Loading history" narrow={narrow} /></View>;
   }
-
   if (error) {
-    return (
-      <View style={styles.centerState}>
-        <Text style={styles.errorTitle}>Could not load history</Text>
-        <Text style={styles.errorText}>{error}</Text>
-        <Pressable
-          onPress={() => {
-            loadEvents(false, targetOpenKey ?? null);
-          }}
-          style={styles.retryButton}>
-          <Text style={styles.retryButtonText}>Try again</Text>
-        </Pressable>
-      </View>
-    );
+    return <View style={styles.tabContent}><WalletSectionHeader label="History" networkFilter={networkFilter} narrow={narrow} />
+      <WalletListState title="Could not load history" body={error} onRetry={() => loadEvents(false, targetOpenKey ?? null)} /></View>;
   }
 
   const filteredEvents = selectedChainId
     ? events.filter((event) => event.chainId === selectedChainId)
     : events;
   const listItems = buildEventListItems(filteredEvents);
+  const firstDate = listItems[0]?.type === 'separator' ? listItems[0].label : 'History';
+  const displayedItems = listItems[0]?.type === 'separator' ? listItems.slice(1) : listItems;
 
   const renderItem: ListRenderItem<EventListItem> = ({item}) => {
     if (item.type === 'separator') {
-      return (
-        <View style={styles.dateSeparator}>
-          <Text style={styles.dateSeparatorText}>{item.label}</Text>
-        </View>
-      );
+      return <WalletSectionHeader label={item.label} narrow={narrow} />;
     }
 
     if (isTransactionActivityItem(item.event)) {
       return (
         <TransactionActivityCard
           activity={item.event}
+          walletDetail narrow={narrow}
           onPress={() => setSelectedEvent(item.event)}
         />
       );
     }
 
-    return <EventCard event={item.event} onPress={() => setSelectedEvent(item.event)} />;
+    return <EventCard event={item.event} walletDetail narrow={narrow} onPress={() => setSelectedEvent(item.event)} />;
   };
 
   return (
     <>
       <FlatList
-        data={listItems}
+        data={displayedItems}
         keyExtractor={item => item.key}
-        contentContainerStyle={filteredEvents.length === 0 ? styles.emptyListContent : styles.listContent}
+        contentContainerStyle={[filteredEvents.length === 0 && styles.emptyListContent, {paddingBottom: bottomPadding}]}
+        ListHeaderComponent={<WalletSectionHeader label={firstDate} networkFilter={networkFilter} narrow={narrow} />}
+        ListHeaderComponentStyle={styles.listHeader}
+        removeClippedSubviews={false}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -244,12 +235,7 @@ export function EventsScreen({
           />
         }
         renderItem={renderItem}
-        ListEmptyComponent={
-          <View style={styles.centerState}>
-            <Text style={styles.emptyTitle}>No history yet</Text>
-            <Text style={styles.stateText}>Wallet activity will appear here once events are available.</Text>
-          </View>
-        }
+        ListEmptyComponent={<WalletListState title="No history yet" body="Wallet activity will appear here once events are available." />}
         showsVerticalScrollIndicator={false}
       />
       <EventDetailModal event={selectedEvent} onClose={() => setSelectedEvent(null)} />
@@ -258,61 +244,5 @@ export function EventsScreen({
 }
 
 const styles = StyleSheet.create({
-  listContent: {
-    paddingTop: 2,
-    paddingBottom: 24,
-  },
-  emptyListContent: {
-    flexGrow: 1,
-  },
-  centerState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
-  stateText: {
-    marginTop: 12,
-    fontSize: 15,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-  emptyTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  errorTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  errorText: {
-    marginTop: 10,
-    fontSize: 15,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-  retryButton: {
-    marginTop: 18,
-    backgroundColor: colors.primaryCtaFill,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderRadius: 999,
-  },
-  retryButtonText: {
-    color: colors.primaryCtaText,
-    fontWeight: '700',
-  },
-  dateSeparator: {
-    paddingTop: 6,
-    paddingBottom: 8,
-  },
-  dateSeparatorText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.textTertiary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-  },
+  listHeader: {zIndex: 10}, tabContent: {flex: 1}, emptyListContent: {flexGrow: 1}, separator: {height: 8},
 });

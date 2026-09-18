@@ -1,8 +1,9 @@
 import React from 'react';
-import {Pressable, StyleSheet, Text, View} from 'react-native';
+import {Linking, Pressable, StyleSheet, Text, View, type GestureResponderEvent} from 'react-native';
+import {WalletHistoryRow} from './WalletHistoryRow';
 import type {TransactionActivityItem} from '../api/events';
 import {colors} from '../theme/colors';
-import {formatChainDisplayName, getChainBadgeTheme} from '../utils/chains';
+import {formatChainDisplayName, getChainBadgeTheme, getTransactionExplorerUrl} from '../utils/chains';
 import {shortenAddress} from '../utils/format';
 import {
   formatTransactionActivityUsdValue,
@@ -13,6 +14,8 @@ import {
 type TransactionActivityCardProps = {
   activity: TransactionActivityItem;
   onPress: () => void;
+  walletDetail?: boolean;
+  narrow?: boolean;
 };
 
 function formatOccurredAt(value: string) {
@@ -33,6 +36,8 @@ function formatOccurredAt(value: string) {
 export function TransactionActivityCard({
   activity,
   onPress,
+  walletDetail = false,
+  narrow = false,
 }: TransactionActivityCardProps) {
   const title = getTransactionActivityTitle(activity.activityType);
   const summaries = getTransactionActivitySummaries(activity);
@@ -48,6 +53,22 @@ export function TransactionActivityCard({
       : activity.activityType === 'nft_mint'
         ? '✦'
         : '↓';
+
+  if (walletDetail) {
+    const explorerUrl = getTransactionExplorerUrl(activity.chainId, activity.transactionHash);
+    const date = new Date(activity.occurredAt);
+    const time = Number.isNaN(date.getTime()) ? activity.occurredAt
+      : date.toLocaleTimeString(undefined, {hour: '2-digit', minute: '2-digit', hour12: false});
+    async function openHash(event: GestureResponderEvent) {
+      event.stopPropagation();
+      if (!explorerUrl) {return;}
+      try {await Linking.openURL(explorerUrl);} catch {console.log('[transaction-card] failed to open transaction explorer');}
+    }
+    return <WalletHistoryRow title={title} subtitle={`${summaries.sent} → ${summaries.received} · ${time}`}
+      glyph={glyph} incoming={activity.activityType !== 'nft_sale'} chainId={activity.chainId}
+      usdValue={usdValue} hash={activity.transactionHash ? shortenAddress(activity.transactionHash).replace('...', '…') : null}
+      onOpenHash={explorerUrl ? openHash : undefined} onPress={onPress} narrow={narrow} />;
+  }
 
   return (
     <Pressable

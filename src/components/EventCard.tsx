@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import type {WalletEvent} from '../api/events';
 import {colors} from '../theme/colors';
+import {WalletHistoryRow} from './WalletHistoryRow';
 import {
   formatActivityAmount,
   formatEventUsdValue,
@@ -25,6 +26,8 @@ import {
 type EventCardProps = {
   event: WalletEvent;
   onPress?: () => void;
+  walletDetail?: boolean;
+  narrow?: boolean;
 };
 
 function formatOccurredAt(value: string) {
@@ -60,7 +63,7 @@ function previewHash(value: string | null | undefined) {
   return value.slice(0, 8) + '...' + value.slice(-4);
 }
 
-export function EventCard({event, onPress}: EventCardProps) {
+export function EventCard({event, onPress, walletDetail = false, narrow = false}: EventCardProps) {
   const [copied, setCopied] = useState(false);
   const copyResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const amountLabel = formatActivityAmount(
@@ -150,6 +153,18 @@ export function EventCard({event, onPress}: EventCardProps) {
       }
     };
   }, []);
+
+  if (walletDetail) {
+    const date = new Date(event.occurredAt);
+    const time = Number.isNaN(date.getTime()) ? event.occurredAt
+      : date.toLocaleTimeString(undefined, {hour: '2-digit', minute: '2-digit', hour12: false});
+    const counterpart = copied ? 'Copied' : counterpartyAddress ? shortenAddress(counterpartyAddress).replace('...', '…') : '';
+    return <WalletHistoryRow title={`${directionLabel} ${amountLabel}`} subtitle={[counterpart, time].filter(Boolean).join(' · ')}
+      glyph={directionGlyph} incoming={event.direction === 'incoming'} chainId={event.chainId}
+      usdValue={usdValueLabel} hash={event.transactionHash ? shortenAddress(event.transactionHash).replace('...', '…') : null}
+      onPress={onPress} onOpenHash={transactionExplorerUrl ? handleOpenTransaction : undefined}
+      onCopy={counterpartyAddress ? handleCopyCounterpartyAddress : undefined} narrow={narrow} />;
+  }
 
   return (
     <Pressable
