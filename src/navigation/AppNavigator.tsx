@@ -23,7 +23,7 @@ type Route =
   | 'alertSettings'
   | 'add'
   | 'notifications';
-type TabId = 'wallets' | 'activity' | 'settings';
+type TabId = 'wallets' | 'activity' | 'alerts' | 'settings';
 type NotificationEventTarget = {
   eventId: string | null;
   openKey: number;
@@ -256,6 +256,24 @@ export function AppNavigator() {
     );
   } else if (activeTab === 'activity') {
     tabContent = <ActivityScreen />;
+  } else if (activeTab === 'alerts') {
+    tabContent = (
+      <NotificationHistoryScreen
+        onOpenWalletHistory={async walletId => {
+          const wallet = await getWalletById(walletId);
+
+          if (!wallet) {
+            return;
+          }
+
+          setActiveTab('wallets');
+          setSelectedWallet(wallet);
+          setDetailInitialTab('history');
+          setNotificationEventTarget(null);
+          setRoute('detail');
+        }}
+      />
+    );
   } else {
     tabContent = (
       <SettingsScreen
@@ -280,6 +298,12 @@ export function AppNavigator() {
           label="Activity"
           active={activeTab === 'activity'}
           onPress={() => setActiveTab('activity')}
+        />
+        <TabButton
+          iconName="diamond-outline"
+          label="Alerts"
+          active={activeTab === 'alerts'}
+          onPress={() => setActiveTab('alerts')}
         />
         <TabButton
           iconName="settings-outline"
