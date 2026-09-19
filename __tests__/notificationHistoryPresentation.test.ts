@@ -1,6 +1,8 @@
 import type { NotificationHistoryItem } from '../src/api/notifications';
 import {
+  filterNotificationHistory,
   formatNotificationAge,
+  getNotificationFilterOptions,
   getNotificationRowCopy,
   groupNotificationHistory,
   isNotificationWithinDays,
@@ -13,6 +15,17 @@ function notification(
 ): NotificationHistoryItem {
   return {
     id,
+    walletId: 'wallet-1',
+    chainId: 'ethereum-mainnet',
+    type: overrides.eventType ?? 'token_transfer',
+    category: overrides.eventType === 'nft_transfer' ? 'nft' : 'movement',
+    severity: overrides.eventType === 'nft_transfer' ? 'info' : 'warning',
+    title: 'Backend alert title',
+    body: 'Backend alert body',
+    readAt: null,
+    isRead: false,
+    relatedEventId: `event-${id}`,
+    transactionHash: `0x${'2'.repeat(64)}`,
     status: 'delivered',
     providerMessageId: null,
     errorMessage: null,
@@ -86,7 +99,7 @@ describe('notification history presentation', () => {
     expect(sections.flatMap(section => section.data)).toHaveLength(3);
   });
 
-  it('uses real direction, amount and counterparty fields for row copy', () => {
+  it('uses backend title and body while preserving honest event glyphs and severity', () => {
     const item = notification('incoming', '2026-09-19T11:48:00.000Z', {
       direction: 'incoming',
       fromAddress: `0x${'a'.repeat(40)}`,
@@ -94,11 +107,48 @@ describe('notification history presentation', () => {
       assetSymbol: 'USDC',
     });
     expect(getNotificationRowCopy(item)).toMatchObject({
-      title: 'Received 2 USDC',
+      title: 'Backend alert title',
+      fact: 'Backend alert body',
       glyph: '↓',
-      tone: 'incoming',
+      tone: 'warning',
     });
-    expect(getNotificationRowCopy(item).fact).toContain('← 0xaaaa…aaaa');
     expect(formatNotificationAge(item, now)).toBe('12m');
+  });
+
+  it('builds honest loaded-data filters without fabricating critical', () => {
+    const movement = notification('move', '2026-09-19T11:00:00.000Z');
+    const nft = {
+      ...notification('nft', '2026-09-19T10:00:00.000Z', {
+        eventType: 'nft_transfer',
+      }),
+      type: 'nft_transfer',
+      category: 'nft',
+      severity: 'info',
+    };
+    const options = getNotificationFilterOptions([movement, nft]);
+
+    expect(options.map(option => option.id)).toEqual([
+      'all',
+      'warning',
+      'moves',
+    ]);
+    expect(filterNotificationHistory([movement, nft], 'warning')).toEqual([
+      movement,
+    ]);
+    expect(filterNotificationHistory([movement, nft], 'moves')).toEqual([
+      movement,
+    ]);
+  });
+
+  it('shows Critical only when the loaded backend data contains it', () => {
+    const critical = {
+      ...notification('critical', '2026-09-19T11:00:00.000Z'),
+      severity: 'critical',
+    };
+    expect(getNotificationFilterOptions([critical])).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'critical', count: 1 }),
+      ]),
+    );
   });
 });

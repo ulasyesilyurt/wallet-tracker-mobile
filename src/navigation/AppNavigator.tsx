@@ -15,6 +15,8 @@ import {SettingsScreen} from '../screens/SettingsScreen';
 import {colors} from '../theme/colors';
 import type {Wallet} from '../types/wallet';
 import {parseNotificationTarget} from '../notifications/notificationTarget';
+import {useNotificationUnreadCount} from '../notifications/useNotificationUnreadCount';
+import {NotificationUnreadBadge} from '../components/NotificationUnreadBadge';
 
 type Route =
   | 'tabs'
@@ -31,6 +33,7 @@ type NotificationEventTarget = {
 
 export function AppNavigator() {
   const {logout} = useAuth();
+  const {unreadCount, refreshUnreadCount} = useNotificationUnreadCount();
   const [route, setRoute] = useState<Route>('tabs');
   const [activeTab, setActiveTab] = useState<TabId>('wallets');
   const [selectedWallet, setSelectedWallet] = useState<Wallet | null>(null);
@@ -52,6 +55,7 @@ export function AppNavigator() {
       message: FirebaseMessagingTypes.RemoteMessage | null,
       source: 'background' | 'initial',
     ) {
+      void refreshUnreadCount();
       const {walletId, walletEventId} = parseNotificationTarget(message?.data);
 
       console.log('[notifications] notification opened', {
@@ -99,6 +103,7 @@ export function AppNavigator() {
     }
 
     const unsubscribeOnMessage = messaging().onMessage(remoteMessage => {
+      void refreshUnreadCount();
       const target = parseNotificationTarget(remoteMessage.data);
 
       console.log('[notifications] foreground message received', {
@@ -138,7 +143,7 @@ export function AppNavigator() {
       unsubscribeOnMessage();
       unsubscribeOpened();
     };
-  }, []);
+  }, [refreshUnreadCount]);
 
   async function handleLogout() {
     console.log('[auth] logout requested from app navigator');
@@ -222,6 +227,8 @@ export function AppNavigator() {
     return (
       <NotificationHistoryScreen
         onBack={() => setRoute('tabs')}
+        unreadCount={unreadCount}
+        onUnreadCountRefresh={refreshUnreadCount}
         onOpenWalletHistory={async walletId => {
           const wallet = await getWalletById(walletId);
 
@@ -259,6 +266,8 @@ export function AppNavigator() {
   } else if (activeTab === 'alerts') {
     tabContent = (
       <NotificationHistoryScreen
+        unreadCount={unreadCount}
+        onUnreadCountRefresh={refreshUnreadCount}
         onOpenWalletHistory={async walletId => {
           const wallet = await getWalletById(walletId);
 
@@ -302,6 +311,7 @@ export function AppNavigator() {
         <TabButton
           iconName="diamond-outline"
           label="Alerts"
+          badgeCount={unreadCount ?? 0}
           active={activeTab === 'alerts'}
           onPress={() => setActiveTab('alerts')}
         />
@@ -319,22 +329,32 @@ export function AppNavigator() {
 function TabButton({
   iconName,
   label,
+  badgeCount = 0,
   active,
   onPress,
 }: {
   iconName: string;
   label: string;
+  badgeCount?: number;
   active: boolean;
   onPress: () => void;
 }) {
   return (
-    <Pressable style={[styles.tabButton, active ? styles.tabButtonActive : null]} onPress={onPress}>
-      <Ionicons
-        name={iconName}
-        size={16}
-        color={active ? colors.textPrimary : colors.textSecondary}
-        style={styles.tabButtonIcon}
-      />
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={
+        badgeCount > 0 ? `${label}, ${badgeCount} unread` : label
+      }
+      style={[styles.tabButton, active ? styles.tabButtonActive : null]}
+      onPress={onPress}>
+      <View style={styles.tabIconWrap}>
+        <Ionicons
+          name={iconName}
+          size={16}
+          color={active ? colors.textPrimary : colors.textSecondary}
+        />
+        <NotificationUnreadBadge count={badgeCount} />
+      </View>
       <Text style={[styles.tabButtonText, active ? styles.tabButtonTextActive : null]}>{label}</Text>
     </Pressable>
   );
@@ -377,7 +397,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  tabButtonIcon: {
+  tabIconWrap: {
+    position: 'relative',
     marginBottom: 1,
   },
   tabButtonText: {

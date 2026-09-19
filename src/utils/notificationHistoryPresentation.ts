@@ -12,6 +12,18 @@ export type NotificationHistorySection = {
   data: NotificationHistoryItem[];
 };
 
+export type NotificationHistoryFilter =
+  | 'all'
+  | 'critical'
+  | 'warning'
+  | 'moves';
+
+export type NotificationHistoryFilterOption = {
+  id: NotificationHistoryFilter;
+  label: string;
+  count: number;
+};
+
 export function getNotificationDate(item: NotificationHistoryItem) {
   return new Date(item.sentAt ?? item.createdAt);
 }
@@ -99,7 +111,7 @@ export function getNotificationRowCopy(item: NotificationHistoryItem) {
   const availableFact = hasAmount ? amount : eventType;
   const outgoing = event.direction === 'outgoing';
   const incoming = event.direction === 'incoming';
-  const title =
+  const fallbackTitle =
     outgoing && hasAmount
       ? `Sent ${amount}`
       : incoming && hasAmount
@@ -111,21 +123,101 @@ export function getNotificationRowCopy(item: NotificationHistoryItem) {
     ? event.fromAddress
     : event.toAddress ?? event.fromAddress;
   const arrow = outgoing ? '→' : incoming ? '←' : '·';
+  const fallbackFact = counterparty
+    ? `${availableFact} ${arrow} ${shortenAddress(counterparty).replace(
+        '...',
+        '…',
+      )}`
+    : availableFact;
+  const severity = item.severity.trim().toLowerCase();
   return {
-    title,
-    fact: counterparty
-      ? `${availableFact} ${arrow} ${shortenAddress(counterparty).replace(
-          '...',
-          '…',
-        )}`
-      : availableFact,
-    glyph: outgoing ? '↑' : incoming ? '↓' : getEventGlyph(event.eventType),
-    tone: outgoing
-      ? ('outgoing' as const)
-      : incoming
-      ? ('incoming' as const)
-      : ('movement' as const),
+    title: item.title.trim() || fallbackTitle,
+    fact: item.body.trim() || fallbackFact,
+    glyph: getNotificationGlyph(item, outgoing, incoming),
+    tone:
+      severity === 'critical'
+        ? ('critical' as const)
+        : severity === 'warning'
+        ? ('warning' as const)
+        : ('info' as const),
   };
+}
+
+export function getNotificationFilterOptions(
+  items: NotificationHistoryItem[],
+): NotificationHistoryFilterOption[] {
+  const counts = {
+    critical: items.filter(item => normalized(item.severity) === 'critical')
+      .length,
+    warning: items.filter(item => normalized(item.severity) === 'warning')
+      .length,
+    moves: items.filter(isMovementNotification).length,
+  };
+  const options: NotificationHistoryFilterOption[] = [
+    { id: 'all', label: 'All', count: items.length },
+  ];
+
+  if (counts.critical > 0) {
+    options.push({ id: 'critical', label: 'Critical', count: counts.critical });
+  }
+  if (counts.warning > 0) {
+    options.push({ id: 'warning', label: 'Warning', count: counts.warning });
+  }
+  if (counts.moves > 0) {
+    options.push({ id: 'moves', label: 'Moves', count: counts.moves });
+  }
+
+  return options;
+}
+
+export function filterNotificationHistory(
+  items: NotificationHistoryItem[],
+  filter: NotificationHistoryFilter,
+) {
+  if (filter === 'critical') {
+    return items.filter(item => normalized(item.severity) === 'critical');
+  }
+  if (filter === 'warning') {
+    return items.filter(item => normalized(item.severity) === 'warning');
+  }
+  if (filter === 'moves') {
+    return items.filter(isMovementNotification);
+  }
+  return items;
+}
+
+export function hasUnreadCriticalNotification(
+  items: NotificationHistoryItem[],
+) {
+  return items.some(
+    item => !item.isRead && normalized(item.severity) === 'critical',
+  );
+}
+
+function isMovementNotification(item: NotificationHistoryItem) {
+  if (normalized(item.category) === 'movement') {
+    return true;
+  }
+
+  const type = normalized(item.type);
+  return type === 'native_transfer' || type === 'token_transfer';
+}
+
+function getNotificationGlyph(
+  item: NotificationHistoryItem,
+  outgoing: boolean,
+  incoming: boolean,
+) {
+  const type = normalized(item.type);
+  const category = normalized(item.category);
+  if (category === 'nft' || type.includes('nft')) return '◇';
+  if (outgoing) return '↑';
+  if (incoming) return '↓';
+  return getEventGlyph(type);
+}
+
+function normalized(value: string) {
+  return value.trim().toLowerCase();
 }
 
 function formatEventType(value: string) {
@@ -135,9 +227,9 @@ function formatEventType(value: string) {
 }
 
 function getEventGlyph(value: string) {
-  const normalized = value.toLowerCase();
-  if (normalized.includes('approval')) return '⌾';
-  if (normalized.includes('price')) return '%';
-  if (normalized.includes('nft')) return '◇';
+  const normalizedType = value.toLowerCase();
+  if (normalizedType.includes('approval')) return '⌾';
+  if (normalizedType.includes('price')) return '%';
+  if (normalizedType.includes('nft')) return '◇';
   return '◇';
 }

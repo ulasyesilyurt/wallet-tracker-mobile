@@ -1,9 +1,11 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import { Text } from 'react-native';
+import { SectionList, StyleSheet, Text } from 'react-native';
 import { NotificationHistoryScreen } from '../src/screens/NotificationHistoryScreen';
 import {
   getNotificationHistory,
+  markAllNotificationsRead,
+  markNotificationRead,
   type NotificationHistoryItem,
 } from '../src/api/notifications';
 
@@ -14,8 +16,22 @@ jest.mock('react-native-safe-area-context', () => ({
 }));
 
 const mockedGetNotificationHistory = jest.mocked(getNotificationHistory);
+const mockedMarkNotificationRead = jest.mocked(markNotificationRead);
+const mockedMarkAllNotificationsRead = jest.mocked(markAllNotificationsRead);
+
 const item: NotificationHistoryItem = {
   id: 'notification-1',
+  walletId: 'wallet-1',
+  chainId: 'ethereum-mainnet',
+  type: 'token_transfer',
+  category: 'movement',
+  severity: 'warning',
+  title: 'Large outgoing transfer',
+  body: '0.50 ETH sent from Main',
+  readAt: null,
+  isRead: false,
+  relatedEventId: 'event-1',
+  transactionHash: `0x${'2'.repeat(64)}`,
   status: 'delivered',
   providerMessageId: null,
   errorMessage: null,
@@ -39,49 +55,253 @@ const item: NotificationHistoryItem = {
   },
 };
 
+function notification(
+  overrides: Partial<NotificationHistoryItem> = {},
+): NotificationHistoryItem {
+  return {
+    ...item,
+    ...overrides,
+    walletEvent: { ...item.walletEvent, ...(overrides.walletEvent ?? {}) },
+  };
+}
+
 async function flush() {
   await act(async () => {
+    await Promise.resolve();
     await Promise.resolve();
     await Promise.resolve();
   });
 }
 
+function allText(renderer: TestRenderer.ReactTestRenderer) {
+  return renderer.root
+    .findAllByType(Text)
+    .map(node => node.props.children)
+    .flat()
+    .join(' ');
+}
+
 describe('NotificationHistoryScreen', () => {
+  let mounted: TestRenderer.ReactTestRenderer[];
+
   beforeEach(() => {
+    mounted = [];
     mockedGetNotificationHistory.mockReset();
+    mockedMarkNotificationRead.mockReset();
+    mockedMarkAllNotificationsRead.mockReset();
+    mockedMarkNotificationRead.mockResolvedValue({
+      id: item.id,
+      isRead: true,
+      readAt: new Date().toISOString(),
+    });
+    mockedMarkAllNotificationsRead.mockResolvedValue(1);
   });
 
-  it('renders recent real data and preserves row navigation without another fetch', async () => {
+  afterEach(() => {
+    act(() => mounted.forEach(renderer => renderer.unmount()));
+  });
+
+  it('renders backend copy, marks an opened row read, refreshes the badge, and preserves navigation', async () => {
     mockedGetNotificationHistory.mockResolvedValue({
       items: [item],
       pagination: { limit: 50, offset: 0, hasMore: false },
     });
     const onOpenWalletHistory = jest.fn();
+    const onUnreadCountRefresh = jest.fn().mockResolvedValue(undefined);
     let renderer: TestRenderer.ReactTestRenderer;
     await act(async () => {
       renderer = TestRenderer.create(
-        <NotificationHistoryScreen onOpenWalletHistory={onOpenWalletHistory} />,
+        <NotificationHistoryScreen
+          onOpenWalletHistory={onOpenWalletHistory}
+          onUnreadCountRefresh={onUnreadCountRefresh}
+        />,
       );
     });
+    mounted.push(renderer!);
     await flush();
 
-    const text = renderer!.root
-      .findAllByType(Text)
-      .map(node => node.props.children)
-      .flat()
-      .join(' ');
-    expect(text).toContain('1 alert in 7 days');
-    expect(text).toContain('Sent 0.50 ETH');
-    expect(mockedGetNotificationHistory).toHaveBeenCalledTimes(1);
+    expect(allText(renderer!)).toContain('Large outgoing transfer');
+    expect(allText(renderer!)).toContain('0.50 ETH sent from Main');
+    expect(mockedGetNotificationHistory).toHaveBeenCalledWith(50, 0);
+    expect(onUnreadCountRefresh).toHaveBeenCalledTimes(1);
 
     const row = renderer!.root.findByProps({
-      accessibilityLabel: 'Sent 0.50 ETH, Main',
+      accessibilityLabel: 'Unread, Large outgoing transfer, Main',
     });
+    expect(
+      StyleSheet.flatten(row.props.style({ pressed: false })).opacity,
+    ).toBeUndefined();
     act(() => row.props.onPress());
+    await flush();
+
     expect(onOpenWalletHistory).toHaveBeenCalledWith('wallet-1');
+    expect(mockedMarkNotificationRead).toHaveBeenCalledWith('notification-1');
+    expect(onUnreadCountRefresh).toHaveBeenCalledTimes(2);
+    const readRow = renderer!.root.findByProps({
+      accessibilityLabel: 'Large outgoing transfer, Main',
+    });
+    expect(
+      StyleSheet.flatten(readRow.props.style({ pressed: false })).opacity,
+    ).toBe(0.72);
   });
 
-  it('keeps the header mounted across error and retry states', async () => {
+  it('marks all loaded rows read through the backend endpoint', async () => {
+    const second = notification({
+      id: 'notification-2',
+      title: 'NFT received',
+      body: 'Collectible received by Main',
+      type: 'nft_transfer',
+      category: 'nft',
+      severity: 'info',
+      relatedEventId: 'event-2',
+      walletEvent: {
+        ...item.walletEvent,
+        id: 'event-2',
+        eventType: 'nft_transfer',
+      },
+    });
+    mockedGetNotificationHistory.mockResolvedValue({
+      items: [item, second],
+      pagination: { limit: 50, offset: 0, hasMore: false },
+    });
+    const onUnreadCountRefresh = jest.fn().mockResolvedValue(undefined);
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <NotificationHistoryScreen
+          onOpenWalletHistory={jest.fn()}
+          onUnreadCountRefresh={onUnreadCountRefresh}
+        />,
+      );
+    });
+    mounted.push(renderer!);
+    await flush();
+
+    const markAll = renderer!.root.findByProps({
+      accessibilityLabel: 'Mark all alerts read',
+    });
+    act(() => markAll.props.onPress());
+    await flush();
+
+    expect(mockedMarkAllNotificationsRead).toHaveBeenCalledTimes(1);
+    expect(onUnreadCountRefresh).toHaveBeenCalledTimes(2);
+    expect(
+      renderer!.root.findAll(
+        node =>
+          typeof node.props.accessibilityLabel === 'string' &&
+          node.props.accessibilityLabel.startsWith('Unread, '),
+      ),
+    ).toHaveLength(0);
+  });
+
+  it('filters loaded backend data without refetching or showing Critical', async () => {
+    const nft = notification({
+      id: 'notification-nft',
+      title: 'NFT received',
+      body: 'Collectible received',
+      type: 'nft_transfer',
+      category: 'nft',
+      severity: 'info',
+      relatedEventId: 'event-nft',
+      walletEvent: {
+        ...item.walletEvent,
+        id: 'event-nft',
+        eventType: 'nft_transfer',
+      },
+    });
+    mockedGetNotificationHistory.mockResolvedValue({
+      items: [item, nft],
+      pagination: { limit: 50, offset: 0, hasMore: false },
+    });
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <NotificationHistoryScreen onOpenWalletHistory={jest.fn()} />,
+      );
+    });
+    mounted.push(renderer!);
+    await flush();
+
+    expect(allText(renderer!)).not.toContain('Critical');
+    const warning = renderer!.root.findByProps({
+      accessibilityLabel: 'Warning alerts, 1',
+    });
+    act(() => warning.props.onPress());
+    expect(allText(renderer!)).toContain('Large outgoing transfer');
+    expect(allText(renderer!)).not.toContain('NFT received');
+
+    const moves = renderer!.root.findByProps({
+      accessibilityLabel: 'Moves alerts, 1',
+    });
+    act(() => moves.props.onPress());
+    expect(allText(renderer!)).toContain('Large outgoing transfer');
+    expect(mockedGetNotificationHistory).toHaveBeenCalledTimes(1);
+  });
+
+  it('appends delivery-based pagination records without deduplicating events', async () => {
+    const secondDelivery = notification({
+      id: 'notification-2',
+      title: 'Second device delivery',
+    });
+    mockedGetNotificationHistory
+      .mockResolvedValueOnce({
+        items: [item],
+        pagination: { limit: 50, offset: 0, hasMore: true },
+      })
+      .mockResolvedValueOnce({
+        items: [secondDelivery],
+        pagination: { limit: 50, offset: 50, hasMore: false },
+      });
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <NotificationHistoryScreen onOpenWalletHistory={jest.fn()} />,
+      );
+    });
+    mounted.push(renderer!);
+    await flush();
+
+    act(() => renderer!.root.findByType(SectionList).props.onEndReached());
+    await flush();
+
+    expect(mockedGetNotificationHistory).toHaveBeenNthCalledWith(2, 50, 50);
+    expect(allText(renderer!)).toContain('Large outgoing transfer');
+    expect(allText(renderer!)).toContain('Second device delivery');
+  });
+
+  it('rolls back optimistic read styling and reports mutation errors', async () => {
+    mockedGetNotificationHistory.mockResolvedValue({
+      items: [item],
+      pagination: { limit: 50, offset: 0, hasMore: false },
+    });
+    mockedMarkNotificationRead.mockRejectedValue(new Error('Read failed'));
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <NotificationHistoryScreen onOpenWalletHistory={jest.fn()} />,
+      );
+    });
+    mounted.push(renderer!);
+    await flush();
+
+    act(() =>
+      renderer!.root
+        .findByProps({
+          accessibilityLabel: 'Unread, Large outgoing transfer, Main',
+        })
+        .props.onPress(),
+    );
+    await flush();
+
+    expect(allText(renderer!)).toContain('Read failed');
+    expect(
+      renderer!.root.findByProps({
+        accessibilityLabel: 'Unread, Large outgoing transfer, Main',
+      }),
+    ).toBeTruthy();
+  });
+
+  it('keeps the header mounted across history errors and preserves quiet state', async () => {
     mockedGetNotificationHistory
       .mockRejectedValueOnce(new Error('offline'))
       .mockResolvedValueOnce({
@@ -94,21 +314,20 @@ describe('NotificationHistoryScreen', () => {
         <NotificationHistoryScreen onOpenWalletHistory={jest.fn()} />,
       );
     });
+    mounted.push(renderer!);
     await flush();
-    let labels = renderer!.root
-      .findAllByType(Text)
-      .map(node => node.props.children)
-      .flat();
-    expect(labels).toContain('Alerts');
-    expect(labels).toContain('Could not load alerts');
+    expect(allText(renderer!)).toContain('Alerts');
+    expect(allText(renderer!)).toContain('Could not load alerts');
 
-    const retry = renderer!.root.findByProps({ accessibilityRole: 'button' });
+    const retry = renderer!.root
+      .findAllByProps({ accessibilityRole: 'button' })
+      .find(node =>
+        node
+          .findAllByType(Text)
+          .some(text => text.props.children === 'Try again'),
+      );
     await act(async () => retry!.props.onPress());
     await flush();
-    labels = renderer!.root
-      .findAllByType(Text)
-      .map(node => node.props.children)
-      .flat();
-    expect(labels).toContain('All quiet');
+    expect(allText(renderer!)).toContain('All quiet');
   });
 });
