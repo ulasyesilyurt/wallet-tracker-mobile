@@ -1,25 +1,25 @@
-import React, {useEffect, useState} from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   Pressable,
   RefreshControl,
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
-import {SafeAreaScreen} from '../components/SafeAreaScreen';
+import { SafeAreaScreen } from '../components/SafeAreaScreen';
 import {
   getWalletPortfolioSummary,
   type WalletPortfolioSummary,
 } from '../api/portfolioSummary';
-import {getWallets} from '../api/wallets';
-import {EmptyState} from '../components/EmptyState';
-import {WalletCard} from '../components/WalletCard';
-import {colors} from '../theme/colors';
-import type {Wallet} from '../types/wallet';
-import {formatUsd} from '../utils/format';
-import {logPortfolioBalanceDecision} from '../utils/performance';
+import { getWallets } from '../api/wallets';
+import { WalletCard } from '../components/WalletCard';
+import { WalletsPortfolioCard } from '../components/WalletsPortfolioCard';
+import { WalletsLoadingRows } from '../components/WalletsLoadingRows';
+import { walletsColors as colors, getWalletsLayout } from '../theme/wallets';
+import type { Wallet } from '../types/wallet';
+import { logPortfolioBalanceDecision } from '../utils/performance';
 
 type FollowingScreenProps = {
   refreshKey?: number;
@@ -34,15 +34,21 @@ export function FollowingScreen({
   onAddWallet,
   onSelectWallet,
 }: FollowingScreenProps) {
+  const { width } = useWindowDimensions();
+  const layout = getWalletsLayout(width);
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [summariesLoading, setSummariesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [walletTotalsById, setWalletTotalsById] = useState<Record<string, number | null>>({});
-  const [walletSecondaryLabelsById, setWalletSecondaryLabelsById] = useState<Record<string, string>>({});
-  const [walletSummaryLoadingById, setWalletSummaryLoadingById] = useState<Record<string, boolean>>({});
-  const [walletSummaryUnavailableCount, setWalletSummaryUnavailableCount] = useState(0);
+  const [walletTotalsById, setWalletTotalsById] = useState<
+    Record<string, number | null>
+  >({});
+  const [, setWalletSecondaryLabelsById] = useState<Record<string, string>>({});
+  const [walletSummaryLoadingById, setWalletSummaryLoadingById] = useState<
+    Record<string, boolean>
+  >({});
+  const [, setWalletSummaryUnavailableCount] = useState(0);
   const [portfolioPerformance, setPortfolioPerformance] = useState<{
     currentValue: number | null;
     change: number | null;
@@ -61,19 +67,28 @@ export function FollowingScreen({
     setWalletSummaryLoadingById(nextSummaryLoadingById);
     setWalletSecondaryLabelsById(nextWalletSecondaryLabelsById);
 
-    const walletSummaryTasks = nextWallets.map(
-      wallet => async () => {
-        const summary = await getWalletPortfolioSummary(wallet.id, {
-          includePositions: false,
-        });
-        return [wallet.id, summary] as const;
-      },
-    );
-    const walletSummaryResults: PromiseSettledResult<readonly [string, WalletPortfolioSummary]>[] = [];
+    const walletSummaryTasks = nextWallets.map(wallet => async () => {
+      const summary = await getWalletPortfolioSummary(wallet.id, {
+        includePositions: false,
+      });
+      return [wallet.id, summary] as const;
+    });
+    const walletSummaryResults: PromiseSettledResult<
+      readonly [string, WalletPortfolioSummary]
+    >[] = [];
 
-    for (let index = 0; index < walletSummaryTasks.length; index += WALLET_SUMMARY_FETCH_CONCURRENCY) {
-      const batchTasks = walletSummaryTasks.slice(index, index + WALLET_SUMMARY_FETCH_CONCURRENCY);
-      const batchResults = await Promise.allSettled(batchTasks.map(task => task()));
+    for (
+      let index = 0;
+      index < walletSummaryTasks.length;
+      index += WALLET_SUMMARY_FETCH_CONCURRENCY
+    ) {
+      const batchTasks = walletSummaryTasks.slice(
+        index,
+        index + WALLET_SUMMARY_FETCH_CONCURRENCY,
+      );
+      const batchResults = await Promise.allSettled(
+        batchTasks.map(task => task()),
+      );
       walletSummaryResults.push(...batchResults);
     }
 
@@ -91,7 +106,8 @@ export function FollowingScreen({
     const mergedTotals: Record<string, number | null> = {};
     const resolvedWalletSecondaryLabelsById: Record<string, string> = {};
     const resolvedWalletSummaryLoadingById: Record<string, boolean> = {};
-    let aggregateLiveCurrentValue: number | null = nextWallets.length === 0 ? 0 : null;
+    let aggregateLiveCurrentValue: number | null =
+      nextWallets.length === 0 ? 0 : null;
     let aggregateLiveCurrentValueAccumulator = 0;
     let availableSummaryCount = 0;
     let unavailableSummaryCount = 0;
@@ -128,8 +144,8 @@ export function FollowingScreen({
           liveSummary?.totalPortfolioUsd != null
             ? 'live_summary_total'
             : walletTotalsById[wallet.id] != null
-              ? 'preserved_previous_live_summary_after_unavailable_refresh'
-              : 'live_summary_unavailable',
+            ? 'preserved_previous_live_summary_after_unavailable_refresh'
+            : 'live_summary_unavailable',
       });
     });
 
@@ -160,24 +176,30 @@ export function FollowingScreen({
       const nextWallets = await getWallets();
       setWallets(nextWallets);
       setError(null);
-      setPortfolioPerformance(
-        nextWallets.length === 0
-          ? {
-              currentValue: 0,
-              change: null,
-              changePercent: null,
-            }
-          : {
-              currentValue: null,
-              change: null,
-              changePercent: null,
-            },
-      );
+      if (!isRefresh || nextWallets.length === 0) {
+        setPortfolioPerformance(
+          nextWallets.length === 0
+            ? {
+                currentValue: 0,
+                change: null,
+                changePercent: null,
+              }
+            : {
+                currentValue: null,
+                change: null,
+                changePercent: null,
+              },
+        );
+      }
       setLoading(false);
 
       await loadWalletSummaries(nextWallets);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Could not load wallets');
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : 'Could not load wallets',
+      );
       setSummariesLoading(false);
     } finally {
       setLoading(false);
@@ -189,91 +211,134 @@ export function FollowingScreen({
     void loadWallets();
   }, [refreshKey]);
 
-  return (
-    <SafeAreaScreen style={styles.screen} topPadding={styles.screen.paddingTop}>
-      <View style={styles.headerRow}>
-        <View>
-          <Text style={styles.title}>Wallets</Text>
-          <Text style={styles.subtitle}>Following</Text>
-        </View>
+  const systemState =
+    loading || refreshing || summariesLoading
+      ? { text: 'Syncing…', style: styles.syncingDot }
+      : error
+      ? { text: 'Offline', style: styles.offlineDot }
+      : { text: `Live · ${wallets.length} watched`, style: styles.liveDot };
+  const hasCachedWallets = error != null && wallets.length > 0;
 
-        <Pressable style={styles.iconButton} onPress={onAddWallet}>
-          <Text style={styles.iconButtonText}>＋</Text>
+  return (
+    <SafeAreaScreen
+      style={[styles.screen, { paddingHorizontal: layout.gutter }]}
+    >
+      <View style={[styles.header, { paddingBottom: layout.headerBottom }]}>
+        <View style={styles.titleBlock}>
+          <Text
+            maxFontSizeMultiplier={1.2}
+            style={[styles.title, { fontSize: layout.titleSize }]}
+          >
+            Wallets
+          </Text>
+          <View style={styles.systemState}>
+            <View style={[styles.systemDot, systemState.style]} />
+            <Text style={[styles.systemText, { fontSize: layout.stateSize }]}>
+              {systemState.text}
+            </Text>
+          </View>
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Add wallet"
+          onPress={onAddWallet}
+          style={({ pressed }) => [
+            styles.addButton,
+            pressed && styles.addButtonPressed,
+          ]}
+        >
+          <Text maxFontSizeMultiplier={1.2} style={styles.addGlyph}>
+            +
+          </Text>
         </Pressable>
       </View>
 
-      {portfolioPerformance ? (
-        <View style={styles.totalCard}>
-          <Text style={styles.totalLabel}>Portfolio total</Text>
-          <Text style={styles.totalValue}>
-            {formatUsd(
-              portfolioPerformance.currentValue,
-              summariesLoading ? 'Loading balances...' : 'Balance unavailable',
-            )}
-          </Text>
-          {portfolioPerformance.change != null && portfolioPerformance.changePercent != null ? (
-            <Text
-              style={[
-                styles.totalPerformance,
-                portfolioPerformance.change >= 0 ? styles.totalPerformancePositive : styles.totalPerformanceNegative,
-              ]}>
-              {portfolioPerformance.change >= 0 ? '+' : ''}
-              {formatUsd(portfolioPerformance.change, '')} · {portfolioPerformance.changePercent >= 0 ? '+' : ''}
-              {portfolioPerformance.changePercent.toFixed(2)}%
-            </Text>
-          ) : (
-            <Text style={styles.totalHint}>
-              {summariesLoading
-                ? 'Loading wallet balances...'
-                : walletSummaryUnavailableCount > 0
-                ? `Available total shown. ${walletSummaryUnavailableCount} wallet${walletSummaryUnavailableCount === 1 ? '' : 's'} still loading.`
-                : 'Collecting performance data'}
-            </Text>
-          )}
-        </View>
-      ) : null}
-
       {loading ? (
-        <View style={styles.centerState}>
-          <ActivityIndicator size="large" color={colors.accent} />
-          <Text style={styles.stateText}>Loading wallets...</Text>
+        <View style={styles.loadingContent}>
+          <WalletsPortfolioCard width={width} value={null} loading />
+          <WalletsLoadingRows width={width} />
         </View>
-      ) : error ? (
-        <View style={styles.centerState}>
-          <Text style={styles.errorTitle}>Could not load wallets</Text>
-          <Text style={styles.errorText}>{error}</Text>
-          <Pressable style={styles.retryButton} onPress={() => void loadWallets()}>
-            <Text style={styles.retryButtonText}>Try again</Text>
-          </Pressable>
-        </View>
+      ) : error && wallets.length === 0 ? (
+        <WalletsState
+          title="Could not load wallets"
+          body={error}
+          action="Try again"
+          onAction={() => void loadWallets()}
+          secondary
+        />
       ) : (
         <FlatList
           data={wallets}
           keyExtractor={item => item.id}
-          contentContainerStyle={wallets.length === 0 ? styles.emptyContent : styles.listContent}
+          contentContainerStyle={[
+            styles.listContent,
+            wallets.length === 0 && styles.emptyContent,
+          ]}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={() => void loadWallets(true)} tintColor={colors.accent} />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => void loadWallets(true)}
+              tintColor={colors.textTertiary}
+            />
           }
-          renderItem={({item}) => (
+          ListHeaderComponent={
+            wallets.length > 0 ? (
+              <View>
+                <WalletsPortfolioCard
+                  width={width}
+                  value={portfolioPerformance?.currentValue ?? null}
+                  loading={summariesLoading}
+                />
+                {hasCachedWallets ? (
+                  <View style={styles.cacheNotice}>
+                    <Text style={styles.cacheNoticeText}>
+                      Showing last known balances
+                    </Text>
+                    <Pressable
+                      accessibilityRole="button"
+                      hitSlop={12}
+                      onPress={() => void loadWallets()}
+                    >
+                      <Text style={styles.cacheRetry}>Retry</Text>
+                    </Pressable>
+                  </View>
+                ) : null}
+                <View
+                  style={[
+                    styles.sectionHeader,
+                    layout.narrow && styles.sectionHeaderNarrow,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.sectionTitle,
+                      layout.narrow && styles.sectionTitleNarrow,
+                    ]}
+                  >
+                    Watching
+                  </Text>
+                </View>
+              </View>
+            ) : null
+          }
+          renderItem={({ item }) => (
             <WalletCard
               wallet={item}
+              width={width}
               totalValueUsd={walletTotalsById[item.id] ?? null}
               changePercent={null}
-              secondaryLabel={walletSecondaryLabelsById[item.id]}
               isBalanceLoading={walletSummaryLoadingById[item.id] ?? false}
               onPress={() => onSelectWallet(item)}
             />
           )}
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
           ListEmptyComponent={
-            <View style={styles.emptyStateWrap}>
-              <EmptyState
-                eyebrow="First wallet"
-                title="Start tracking wallets"
-                description="Follow any wallet address to see its balances, protocol positions, and recent activity in one place."
-                actionLabel="Add wallet"
-                onAction={onAddWallet}
-              />
-            </View>
+            <WalletsState
+              title="No wallets yet"
+              body="Add a wallet to follow its balances, positions, and activity."
+              action="Add wallet"
+              onAction={onAddWallet}
+            />
           }
           showsVerticalScrollIndicator={false}
         />
@@ -282,125 +347,166 @@ export function FollowingScreen({
   );
 }
 
+function WalletsState({
+  title,
+  body,
+  action,
+  onAction,
+  secondary = false,
+}: {
+  title: string;
+  body: string;
+  action: string;
+  onAction: () => void;
+  secondary?: boolean;
+}) {
+  return (
+    <View style={styles.state}>
+      <Text style={styles.stateTitle}>{title}</Text>
+      <Text style={styles.stateBody}>{body}</Text>
+      <Pressable
+        accessibilityRole="button"
+        onPress={onAction}
+        style={({ pressed }) => [
+          styles.stateButton,
+          secondary && styles.stateButtonSecondary,
+          pressed && styles.stateButtonPressed,
+        ]}
+      >
+        <Text
+          style={[
+            styles.stateButtonText,
+            secondary && styles.stateButtonSecondaryText,
+          ]}
+        >
+          {action}
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-    paddingHorizontal: 18,
-    paddingTop: 20,
-  },
-  headerRow: {
-    marginBottom: 16,
+  screen: { flex: 1, backgroundColor: colors.background },
+  header: {
+    paddingTop: 4,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 12,
   },
+  titleBlock: { flex: 1, minWidth: 0 },
   title: {
-    fontSize: 26,
+    lineHeight: 32,
     fontWeight: '800',
+    letterSpacing: -0.75,
     color: colors.textPrimary,
   },
-  subtitle: {
-    marginTop: 4,
-    fontSize: 13,
-    color: colors.textTertiary,
+  systemState: {
+    marginTop: 7,
+    minHeight: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
   },
-  iconButton: {
+  systemDot: { width: 6, height: 6, borderRadius: 3 },
+  liveDot: { backgroundColor: colors.positive },
+  syncingDot: { backgroundColor: colors.warning },
+  offlineDot: { backgroundColor: colors.textTertiary },
+  systemText: { fontWeight: '500', color: colors.textSecondary },
+  addButton: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.primaryCtaFill,
-  },
-  iconButtonText: {
-    color: colors.primaryCtaText,
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  totalCard: {
-    marginBottom: 14,
-    borderRadius: 20,
     backgroundColor: colors.elevated,
     borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    borderColor: colors.iconBorder,
   },
-  totalLabel: {
-    fontSize: 12,
-    color: colors.textTertiary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    fontWeight: '700',
-  },
-  totalValue: {
-    marginTop: 6,
-    fontSize: 28,
-    fontWeight: '800',
+  addButtonPressed: { backgroundColor: colors.selected },
+  addGlyph: {
+    fontSize: 21,
+    lineHeight: 23,
+    fontWeight: '400',
     color: colors.textPrimary,
   },
-  totalHint: {
-    marginTop: 4,
-    fontSize: 13,
+  loadingContent: { flex: 1 },
+  listContent: { paddingBottom: 8 },
+  emptyContent: { flexGrow: 1 },
+  sectionHeader: { marginTop: 10, paddingBottom: 8, paddingHorizontal: 2 },
+  sectionHeaderNarrow: { marginTop: 9 },
+  sectionTitle: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  sectionTitleNarrow: { fontSize: 13 },
+  separator: { height: 8 },
+  cacheNotice: {
+    minHeight: 44,
+    paddingHorizontal: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  cacheNoticeText: {
+    flex: 1,
+    fontSize: 12.5,
+    fontWeight: '500',
+    color: colors.textTertiary,
+  },
+  cacheRetry: {
+    fontSize: 12.5,
+    fontWeight: '700',
     color: colors.textSecondary,
   },
-  totalPerformance: {
-    marginTop: 4,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  totalPerformancePositive: {
-    color: colors.positive,
-  },
-  totalPerformanceNegative: {
-    color: colors.negative,
-  },
-  listContent: {
-    paddingBottom: 28,
-  },
-  emptyContent: {
-    flexGrow: 1,
-    paddingBottom: 28,
-  },
-  emptyStateWrap: {
+  state: {
     flex: 1,
-    justifyContent: 'center',
-    paddingBottom: 40,
-  },
-  centerState: {
-    flex: 1,
+    minHeight: 220,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
-  stateText: {
-    marginTop: 12,
-    fontSize: 15,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-  errorTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  errorText: {
-    marginTop: 10,
-    fontSize: 15,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-  retryButton: {
-    marginTop: 18,
-    backgroundColor: colors.primaryCtaFill,
     paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderRadius: 999,
+    paddingBottom: 40,
   },
-  retryButtonText: {
-    color: colors.primaryCtaText,
+  stateTitle: {
+    fontSize: 21,
+    fontWeight: '800',
+    letterSpacing: -0.42,
+    color: colors.textPrimary,
+    textAlign: 'center',
+  },
+  stateBody: {
+    maxWidth: 310,
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: '500',
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  stateButton: {
+    marginTop: 20,
+    height: 50,
+    minWidth: 126,
+    paddingHorizontal: 18,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primaryCtaFill,
+  },
+  stateButtonSecondary: {
+    height: 48,
+    borderRadius: 15,
+    backgroundColor: colors.elevated,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  stateButtonPressed: { opacity: 0.75 },
+  stateButtonText: {
+    fontSize: 15,
     fontWeight: '700',
+    color: colors.primaryCtaText,
   },
+  stateButtonSecondaryText: { fontSize: 14.5, color: colors.textPrimary },
 });
