@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -8,7 +11,9 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {SafeAreaScreen} from '../components/SafeAreaScreen';
 import {
   getWalletAlertSettings,
@@ -17,8 +22,21 @@ import {
 import { colors as appColors } from '../theme/colors';
 import {walletDetailColors} from '../theme/walletDetail';
 import {WalletSectionHeader} from '../components/WalletDetailUI';
+import {
+  FormActionBar,
+  FormField,
+  PushedScreenHeader,
+  WalletSubjectLine,
+} from '../components/WalletManagementUI';
+import {ListSectionHeader, SettingRow} from '../components/SettingsUI';
 import type { Wallet } from '../types/wallet';
 import { shortenAddress } from '../utils/format';
+import {
+  getWalletFormScrollBottomPadding,
+  getWalletManagementBottomInset,
+  getWalletManagementLayout,
+  walletManagementColors,
+} from '../theme/walletManagement';
 
 type WalletAlertSettingsScreenProps = {
   wallet: Wallet;
@@ -63,6 +81,14 @@ export function WalletAlertSettingsScreen({
   embedded = false,
   bottomPadding = 16,
 }: WalletAlertSettingsScreenProps) {
+  const {width} = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const managementLayout = getWalletManagementLayout(width);
+  const platform = Platform.OS === 'ios' ? 'ios' : 'android';
+  const managementBottomInset = getWalletManagementBottomInset(
+    platform,
+    insets.bottom,
+  );
   const colors = embedded ? walletDetailColors : appColors;
   const styles = embedded ? embeddedStyles : defaultStyles;
   const ScreenContainer = embedded ? View : SafeAreaScreen;
@@ -192,6 +218,202 @@ export function WalletAlertSettingsScreen({
   const alertControlsDisabled = saving || !notificationsEnabled;
   const fungibleControlsDisabled =
     alertControlsDisabled || !notifyFungibleTransfers;
+
+  if (!embedded) {
+    return (
+      <SafeAreaScreen style={standaloneStyles.screen}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={standaloneStyles.keyboardAvoider}
+        >
+          {loading ? (
+            <View
+              style={[
+                standaloneStyles.stateFrame,
+                {paddingHorizontal: managementLayout.gutter},
+              ]}
+            >
+              <PushedScreenHeader
+                title="Alert settings"
+                onBack={onBack}
+              />
+              <View style={standaloneStyles.centerState}>
+                <ActivityIndicator size="large" color={walletManagementColors.accent} />
+                <Text style={standaloneStyles.stateText}>
+                  Loading alert settings...
+                </Text>
+              </View>
+            </View>
+          ) : loadError ? (
+            <View
+              style={[
+                standaloneStyles.stateFrame,
+                {paddingHorizontal: managementLayout.gutter},
+              ]}
+            >
+              <PushedScreenHeader title="Alert settings" onBack={onBack} />
+              <View style={standaloneStyles.centerState}>
+                <Text style={standaloneStyles.errorTitle}>
+                  Could not load alert settings
+                </Text>
+                <Text style={standaloneStyles.stateErrorText}>{loadError}</Text>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={loadSettings}
+                  style={standaloneStyles.retryButton}
+                >
+                  <Text style={standaloneStyles.retryText}>Try again</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : (
+            <>
+              <ScrollView
+                contentContainerStyle={{
+                  paddingHorizontal: managementLayout.gutter,
+                  paddingBottom: getWalletFormScrollBottomPadding(
+                    width,
+                    platform,
+                    insets.bottom,
+                  ),
+                }}
+                keyboardDismissMode="on-drag"
+                keyboardShouldPersistTaps="handled"
+                onScrollBeginDrag={Keyboard.dismiss}
+                scrollIndicatorInsets={{bottom: managementBottomInset}}
+                showsVerticalScrollIndicator={false}
+              >
+                <PushedScreenHeader
+                  title="Alert settings"
+                  onBack={onBack}
+                  backDisabled={saving}
+                />
+                <WalletSubjectLine
+                  label={wallet.label || 'Unnamed wallet'}
+                  address={wallet.address}
+                />
+
+                <View style={{marginTop: managementLayout.sectionGap}}>
+                  <ListSectionHeader first title="Event types" />
+                  <View style={standaloneStyles.rows}>
+                    <SettingRow
+                      type="switch"
+                      label="Notify token/native transfers"
+                      disabled={alertControlsDisabled}
+                      switchValue={notifyFungibleTransfers}
+                      onPress={() => {
+                        if (alertControlsDisabled) return;
+                        setNotifyFungibleTransfers(!notifyFungibleTransfers);
+                        setMinimumAmountError(null);
+                        clearSaveFeedback();
+                      }}
+                    />
+                    <SettingRow
+                      type="switch"
+                      label="Incoming transfers"
+                      disabled={fungibleControlsDisabled}
+                      switchValue={notifyIncomingTransfers}
+                      onPress={() => {
+                        if (fungibleControlsDisabled) return;
+                        setNotifyIncomingTransfers(!notifyIncomingTransfers);
+                        clearSaveFeedback();
+                      }}
+                    />
+                    <SettingRow
+                      type="switch"
+                      label="Outgoing transfers"
+                      disabled={fungibleControlsDisabled}
+                      switchValue={notifyOutgoingTransfers}
+                      onPress={() => {
+                        if (fungibleControlsDisabled) return;
+                        setNotifyOutgoingTransfers(!notifyOutgoingTransfers);
+                        clearSaveFeedback();
+                      }}
+                    />
+                    <SettingRow
+                      type="switch"
+                      label="Notify NFT transfers"
+                      disabled={alertControlsDisabled}
+                      switchValue={notifyNftTransfers}
+                      onPress={() => {
+                        if (alertControlsDisabled) return;
+                        setNotifyNftTransfers(!notifyNftTransfers);
+                        clearSaveFeedback();
+                      }}
+                    />
+                  </View>
+                </View>
+
+                <View style={{marginTop: managementLayout.sectionGap}}>
+                  <ListSectionHeader
+                    first
+                    title="Thresholds"
+                    meta="Applies to this wallet"
+                  />
+                  <FormField
+                    autoCorrect={false}
+                    editable={!fungibleControlsDisabled}
+                    keyboardType="decimal-pad"
+                    label="Minimum USD amount"
+                    message={minimumAmountError}
+                    onChangeText={value => {
+                      setMinimumAlertUsd(value);
+                      setMinimumAmountError(null);
+                      clearSaveFeedback();
+                    }}
+                    placeholder="0.00"
+                    state={
+                      minimumAmountError
+                        ? 'error'
+                        : fungibleControlsDisabled
+                        ? 'readOnly'
+                        : 'rest'
+                    }
+                    value={minimumAlertUsd}
+                  />
+                </View>
+
+                <View style={{marginTop: managementLayout.sectionGap}}>
+                  <ListSectionHeader first title="Delivery" />
+                  <View style={standaloneStyles.rows}>
+                    <SettingRow
+                      type="switch"
+                      label="Notifications enabled"
+                      disabled={saving}
+                      switchValue={notificationsEnabled}
+                      onPress={() => {
+                        if (saving) return;
+                        setNotificationsEnabled(!notificationsEnabled);
+                        clearSaveFeedback();
+                      }}
+                    />
+                  </View>
+                </View>
+
+                {successMessage ? (
+                  <Text
+                    accessibilityLiveRegion="polite"
+                    style={standaloneStyles.successText}
+                  >
+                    {successMessage}
+                  </Text>
+                ) : null}
+              </ScrollView>
+
+              <FormActionBar
+                label="Save alert settings"
+                onPress={handleSave}
+                busy={saving}
+                disabled={false}
+                bottomInset={managementBottomInset}
+                error={saveError}
+              />
+            </>
+          )}
+        </KeyboardAvoidingView>
+      </SafeAreaScreen>
+    );
+  }
 
   return (
     <ScreenContainer {...(embedded ? {style: styles.screen} : {style: styles.screen, topPadding: 20})}>
@@ -659,3 +881,59 @@ const embeddedStyles = {
   footer: {...embeddedBaseStyles.footer, paddingHorizontal: 0, paddingBottom: 16},
   saveButton: {...embeddedBaseStyles.saveButton, minHeight: 50, borderRadius: 16},
 };
+
+const standaloneStyles = StyleSheet.create({
+  screen: {flex: 1, backgroundColor: walletManagementColors.background},
+  keyboardAvoider: {flex: 1},
+  stateFrame: {flex: 1},
+  centerState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingBottom: 72,
+  },
+  stateText: {
+    marginTop: 12,
+    fontSize: 13,
+    color: walletManagementColors.textSecondary,
+  },
+  errorTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: walletManagementColors.textPrimary,
+    textAlign: 'center',
+  },
+  stateErrorText: {
+    marginTop: 8,
+    fontSize: 12.5,
+    lineHeight: 18,
+    color: walletManagementColors.negative,
+    textAlign: 'center',
+  },
+  retryButton: {
+    minWidth: 44,
+    minHeight: 44,
+    marginTop: 16,
+    paddingHorizontal: 16,
+    borderRadius: 11,
+    backgroundColor: walletManagementColors.neutralTint,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  retryText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: walletManagementColors.textPrimary,
+  },
+  rows: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: walletManagementColors.divider,
+  },
+  successText: {
+    marginTop: 18,
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: walletManagementColors.positive,
+  },
+});

@@ -1,22 +1,35 @@
-import React, {useMemo, useState} from 'react';
+import React, {useMemo, useRef, useState} from 'react';
 import {
-  ActivityIndicator,
   Alert,
-  Pressable,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
-import {SafeAreaScreen} from '../components/SafeAreaScreen';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {deleteWallet, updateWallet} from '../api/wallets';
-import {colors} from '../theme/colors';
-import type {Wallet, WalletTrackType} from '../types/wallet';
-import {shortenAddress} from '../utils/format';
 import {
-  formatWalletChainsLabel,
+  DestructiveRow,
+  FormActionBar,
+  FormField,
+  PushedScreenHeader,
+  SegmentedChainSelect,
+} from '../components/WalletManagementUI';
+import {SafeAreaScreen} from '../components/SafeAreaScreen';
+import {ListSectionHeader, SettingRow} from '../components/SettingsUI';
+import {
+  getWalletFormScrollBottomPadding,
+  getWalletManagementBottomInset,
+  getWalletManagementLayout,
+  walletManagementColors as colors,
+} from '../theme/walletManagement';
+import type {Wallet, WalletTrackType} from '../types/wallet';
+import {
   getWalletEnabledChains,
   SUPPORTED_WALLET_CHAIN_OPTIONS,
 } from '../utils/chains';
@@ -29,15 +42,10 @@ type WalletEditScreenProps = {
   onDeleted: (walletId: string) => void;
 };
 
-type TrackTypeOption = {
-  key: WalletTrackType;
-  title: string;
-};
-
-const TRACK_TYPE_OPTIONS: TrackTypeOption[] = [
-  {key: 'token_transfer', title: 'Token transfers'},
-  {key: 'nft_transfer', title: 'NFT transfers'},
-  {key: 'native_transfer', title: 'Native transfers'},
+const TRACK_TYPE_OPTIONS: Array<{key: WalletTrackType; label: string}> = [
+  {key: 'token_transfer', label: 'Token transfers'},
+  {key: 'nft_transfer', label: 'NFT transfers'},
+  {key: 'native_transfer', label: 'Native transfers'},
 ];
 
 const EVM_ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;
@@ -49,72 +57,69 @@ export function WalletEditScreen({
   onSaved,
   onDeleted,
 }: WalletEditScreenProps) {
+  const {width} = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const layout = getWalletManagementLayout(width);
+  const platform = Platform.OS === 'ios' ? 'ios' : 'android';
+  const bottomInset = getWalletManagementBottomInset(platform, insets.bottom);
+  const labelRef = useRef<TextInput>(null);
   const [address, setAddress] = useState(wallet.address);
   const [label, setLabel] = useState(wallet.label ?? '');
   const [selectedChains, setSelectedChains] = useState<string[]>(
     getWalletEnabledChains(wallet.chainId, wallet.enabledChains),
   );
-  const [selectedTrackTypes, setSelectedTrackTypes] = useState<WalletTrackType[]>(wallet.trackTypes ?? []);
+  const [selectedTrackTypes, setSelectedTrackTypes] = useState<WalletTrackType[]>(
+    wallet.trackTypes ?? [],
+  );
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [addressError, setAddressError] = useState<string | null>(null);
   const [chainsError, setChainsError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const normalizedTrackTypes = useMemo(() => {
-    return TRACK_TYPE_OPTIONS.filter(option => selectedTrackTypes.includes(option.key)).map(option => option.key);
-  }, [selectedTrackTypes]);
+  const normalizedTrackTypes = useMemo(
+    () =>
+      TRACK_TYPE_OPTIONS.filter(option =>
+        selectedTrackTypes.includes(option.key),
+      ).map(option => option.key),
+    [selectedTrackTypes],
+  );
 
   function toggleTrackType(trackType: WalletTrackType) {
-    setSelectedTrackTypes(current => {
-      if (current.includes(trackType)) {
-        return current.filter(item => item !== trackType);
-      }
-
-      return [...current, trackType];
-    });
+    setSelectedTrackTypes(current =>
+      current.includes(trackType)
+        ? current.filter(item => item !== trackType)
+        : [...current, trackType],
+    );
   }
 
   function toggleChain(chainId: string) {
-    setSelectedChains((current) => {
+    setSelectedChains(current => {
       const nextChains = current.includes(chainId)
-        ? current.filter((value) => value !== chainId)
+        ? current.filter(value => value !== chainId)
         : [...current, chainId];
-
-      if (chainsError && nextChains.length > 0) {
-        setChainsError(null);
-      }
-
+      if (chainsError && nextChains.length > 0) setChainsError(null);
       return nextChains;
     });
   }
 
   function validateAddress(value: string) {
     const normalized = value.trim();
-
-    if (normalized.length === 0) {
-      return 'Wallet address is required';
-    }
-
+    if (normalized.length === 0) return 'Wallet address is required';
     if (!EVM_ADDRESS_PATTERN.test(normalized)) {
       return 'Enter a valid EVM wallet address';
     }
-
     return null;
   }
 
   async function handleSave() {
-    if (saving || deleting) {
-      return;
-    }
+    if (saving || deleting) return;
 
     const nextAddressError = validateAddress(address);
-
     if (nextAddressError) {
       setAddressError(nextAddressError);
       return;
     }
-
     if (selectedChains.length === 0) {
       setChainsError('Select at least one chain');
       return;
@@ -132,21 +137,18 @@ export function WalletEditScreen({
         trackTypes: normalizedTrackTypes,
         enabledChains: selectedChains,
       });
-
       onSaved(updatedWallet);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Could not update wallet';
-      setSubmitError(message);
+      setSubmitError(
+        error instanceof Error ? error.message : 'Could not update wallet',
+      );
     } finally {
       setSaving(false);
     }
   }
 
   async function handleDeleteConfirmed() {
-    if (saving || deleting) {
-      return;
-    }
-
+    if (saving || deleting) return;
     setDeleting(true);
     setSubmitError(null);
 
@@ -154,18 +156,16 @@ export function WalletEditScreen({
       await deleteWallet(wallet.id);
       onDeleted(wallet.id);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Could not delete wallet';
-      setSubmitError(message);
+      setSubmitError(
+        error instanceof Error ? error.message : 'Could not delete wallet',
+      );
     } finally {
       setDeleting(false);
     }
   }
 
   function handleDeletePress() {
-    if (saving || deleting) {
-      return;
-    }
-
+    if (saving || deleting) return;
     Alert.alert(
       'Delete wallet?',
       'This will stop tracking the wallet and remove it from your followed list.',
@@ -174,376 +174,151 @@ export function WalletEditScreen({
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            void handleDeleteConfirmed();
-          },
+          onPress: handleDeleteConfirmed,
         },
       ],
     );
   }
 
+  const disabled = saving || deleting;
+
   return (
-    <SafeAreaScreen style={styles.screen} topPadding={styles.screen.paddingTop}>
-      <View style={styles.headerRow}>
-        <Pressable onPress={onBack} style={styles.headerButton} hitSlop={6}>
-          <Text style={styles.headerButtonText}>Cancel</Text>
-        </Pressable>
-      </View>
-
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <Text style={styles.title}>{wallet.label || 'Wallet settings'}</Text>
-          <Text style={styles.subtitle}>{shortenAddress(wallet.address)} · {formatWalletChainsLabel(wallet.chainId, wallet.enabledChains)}</Text>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.label}>Wallet address</Text>
-          <TextInput
-            value={address}
-            onChangeText={value => {
-              setAddress(value);
-              if (addressError) {
-                setAddressError(null);
-              }
-            }}
-            autoCapitalize="none"
-            autoCorrect={false}
-            placeholder="0x..."
-            placeholderTextColor={colors.textTertiary}
-            style={[styles.input, addressError ? styles.inputError : null]}
+    <SafeAreaScreen style={styles.screen}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardAvoider}
+      >
+        <ScrollView
+          contentContainerStyle={{
+            paddingHorizontal: layout.gutter,
+            paddingBottom: getWalletFormScrollBottomPadding(
+              width,
+              platform,
+              insets.bottom,
+            ),
+          }}
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
+          onScrollBeginDrag={Keyboard.dismiss}
+          scrollIndicatorInsets={{bottom: bottomInset}}
+          showsVerticalScrollIndicator={false}
+        >
+          <PushedScreenHeader
+            title="Edit wallet"
+            walletLabel={wallet.label || 'Wallet'}
+            onBack={onBack}
           />
-          {addressError ? <Text style={styles.errorText}>{addressError}</Text> : null}
-        </View>
 
-        <View style={styles.section}>
-          <Text style={styles.label}>Wallet label</Text>
-          <TextInput
-            value={label}
-            onChangeText={setLabel}
-            placeholder="My Main Wallet"
-            placeholderTextColor={colors.textTertiary}
-            style={styles.input}
-          />
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.label}>Networks</Text>
-          <View style={styles.chainOptionsRow}>
-            {SUPPORTED_WALLET_CHAIN_OPTIONS.map((option) => {
-              const selected = selectedChains.includes(option.chainId);
-
-              return (
-                <Pressable
-                  key={option.chainId}
-                  onPress={() => toggleChain(option.chainId)}
-                  style={[
-                    styles.chainOptionCard,
-                    selected ? styles.chainOptionCardActive : null,
-                  ]}>
-                  <Text style={styles.chainOptionText}>{option.label}</Text>
-                  <Text style={styles.chainOptionHint}>
-                    {selected ? 'Selected' : 'Tap to add'}
-                  </Text>
-                </Pressable>
-              );
-            })}
+          <View style={{marginTop: layout.sectionGap}}>
+            <FormField
+              autoCapitalize="none"
+              autoCorrect={false}
+              spellCheck={false}
+              blurOnSubmit={false}
+              label="Wallet address"
+              message={addressError}
+              mono
+              onChangeText={value => {
+                setAddress(value);
+                if (addressError) setAddressError(null);
+              }}
+              onSubmitEditing={() => labelRef.current?.focus()}
+              placeholder="0x…"
+              returnKeyType="next"
+              state={addressError ? 'error' : 'rest'}
+              value={address}
+            />
           </View>
-          {chainsError ? <Text style={styles.errorText}>{chainsError}</Text> : null}
-        </View>
 
-        <View style={styles.section}>
-          <Text style={styles.label}>Track activity</Text>
-          {TRACK_TYPE_OPTIONS.map(option => {
-            const enabled = selectedTrackTypes.includes(option.key);
+          <View style={{marginTop: layout.fieldGap}}>
+            <FormField
+              ref={labelRef}
+              autoCapitalize="words"
+              label="Label"
+              onChangeText={setLabel}
+              onSubmitEditing={Keyboard.dismiss}
+              placeholder="Main, Cold, Trading…"
+              returnKeyType="done"
+              value={label}
+            />
+          </View>
 
-            return (
-              <View key={option.key} style={styles.switchRow}>
-                <Text style={styles.switchLabel}>{option.title}</Text>
-                <Switch
-                  value={enabled}
-                  onValueChange={() => toggleTrackType(option.key)}
-                  trackColor={{false: colors.border, true: colors.accent}}
-                  thumbColor={enabled ? colors.primaryCtaFill : colors.textSecondary}
-                />
-              </View>
-            );
-          })}
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.label}>Alerts</Text>
-          <Pressable
-            style={[
-              styles.alertSettingsRow,
-              (saving || deleting) ? styles.alertSettingsRowDisabled : null,
-            ]}
-            onPress={onOpenAlertSettings}
-            disabled={saving || deleting}>
-            <View style={styles.alertSettingsTextBlock}>
-              <Text style={styles.alertSettingsTitle}>Alert settings</Text>
-              <Text style={styles.alertSettingsDescription}>
-                Minimum USD threshold, notifications, and NFT alerts
+          <View style={{marginTop: layout.sectionGap}}>
+            <ListSectionHeader first title="Network" />
+            <SegmentedChainSelect
+              options={SUPPORTED_WALLET_CHAIN_OPTIONS}
+              selectedValues={selectedChains}
+              onToggle={toggleChain}
+            />
+            {chainsError ? (
+              <Text accessibilityLiveRegion="polite" style={styles.errorText}>
+                {chainsError}
               </Text>
+            ) : null}
+          </View>
+
+          <View style={{marginTop: layout.sectionGap}}>
+            <ListSectionHeader first title="Alert me about" />
+            <View style={styles.preferenceRows}>
+              {TRACK_TYPE_OPTIONS.map(option => (
+                <SettingRow
+                  key={option.key}
+                  type="switch"
+                  label={option.label}
+                  disabled={disabled}
+                  switchValue={selectedTrackTypes.includes(option.key)}
+                  onPress={() => {
+                    if (!disabled) toggleTrackType(option.key);
+                  }}
+                />
+              ))}
             </View>
-            <Text style={styles.alertSettingsChevron}>›</Text>
-          </Pressable>
-        </View>
+          </View>
 
-        <View style={styles.dangerSection}>
-          <Text style={styles.dangerTitle}>Danger zone</Text>
-          <Text style={styles.dangerBody}>
-            Deleting this wallet will stop tracking its activity and remove it from your list.
-          </Text>
-          <Pressable
-            style={[styles.deleteButton, (saving || deleting) && styles.deleteButtonDisabled]}
-            onPress={handleDeletePress}>
-            {deleting ? (
-              <ActivityIndicator color={colors.negative} />
-            ) : (
-              <Text style={styles.deleteButtonText}>Delete wallet</Text>
-            )}
-          </Pressable>
-        </View>
-      </ScrollView>
+          <View style={{marginTop: layout.sectionGap}}>
+            <ListSectionHeader first title="Alerts" />
+            <SettingRow
+              type="navigation"
+              label="Alert settings"
+              disabled={disabled}
+              onPress={() => {
+                if (!disabled) onOpenAlertSettings();
+              }}
+            />
+          </View>
 
-      <View style={styles.footer}>
-        {submitError ? <Text style={styles.submitErrorText}>{submitError}</Text> : null}
-        <Pressable
-          style={[styles.saveButton, (saving || deleting) && styles.saveButtonDisabled]}
+          <DestructiveRow
+            label={deleting ? 'Deleting…' : 'Delete wallet'}
+            consequence="Stops monitoring. On-chain funds are unaffected."
+            disabled={disabled}
+            onPress={handleDeletePress}
+          />
+        </ScrollView>
+
+        <FormActionBar
+          label="Save changes"
           onPress={handleSave}
-          disabled={saving || deleting}>
-          {saving ? <ActivityIndicator color={colors.primaryCtaText} /> : <Text style={styles.saveButtonText}>Save changes</Text>}
-        </Pressable>
-      </View>
+          busy={saving}
+          disabled={deleting}
+          bottomInset={bottomInset}
+          error={submitError}
+        />
+      </KeyboardAvoidingView>
     </SafeAreaScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-    paddingTop: 20,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 18,
-    paddingBottom: 24,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-    alignItems: 'center',
-    paddingHorizontal: 18,
-  },
-  headerButton: {
-    minWidth: 44,
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.elevated,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  headerButtonText: {
-    color: colors.textPrimary,
-    fontWeight: '700',
-  },
-  header: {
-    marginTop: 18,
-    marginBottom: 18,
-  },
-  title: {
-    fontSize: 28,
-    lineHeight: 32,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  subtitle: {
-    marginTop: 8,
-    fontSize: 13,
-    color: colors.textSecondary,
-  },
-  section: {
-    backgroundColor: colors.card,
-    borderRadius: 22,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 14,
-  },
-  label: {
-    fontSize: 12,
-    color: colors.textTertiary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    fontWeight: '700',
-    marginBottom: 12,
-  },
-  input: {
-    backgroundColor: colors.elevated,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    fontSize: 16,
-    color: colors.textPrimary,
-  },
-  inputError: {
-    borderColor: colors.negative,
+  screen: {flex: 1, backgroundColor: colors.background},
+  keyboardAvoider: {flex: 1},
+  preferenceRows: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.divider,
   },
   errorText: {
-    marginTop: 8,
-    fontSize: 13,
-    color: colors.negative,
-  },
-  chainOptionsRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  chainOptionCard: {
-    flex: 1,
-    backgroundColor: colors.elevated,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-  },
-  chainOptionCardActive: {
-    backgroundColor: colors.card,
-    borderColor: colors.accent,
-  },
-  chainOptionText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  chainOptionHint: {
-    marginTop: 4,
-    fontSize: 13,
-    color: colors.textSecondary,
-  },
-  switchRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 10,
-  },
-  switchLabel: {
-    fontSize: 16,
-    color: colors.textPrimary,
-    fontWeight: '600',
-  },
-  alertSettingsRow: {
-    backgroundColor: colors.elevated,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  alertSettingsRowDisabled: {
-    opacity: 0.6,
-  },
-  alertSettingsTextBlock: {
-    flex: 1,
-  },
-  alertSettingsTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  alertSettingsDescription: {
-    marginTop: 4,
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.textSecondary,
-  },
-  alertSettingsChevron: {
-    fontSize: 22,
-    lineHeight: 22,
-    color: colors.textTertiary,
-  },
-  saveButton: {
-    backgroundColor: colors.primaryCtaFill,
-    borderRadius: 999,
-    paddingVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  saveButtonDisabled: {
-    opacity: 0.7,
-  },
-  saveButtonText: {
-    color: colors.primaryCtaText,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  footer: {
-    paddingHorizontal: 18,
-    paddingTop: 10,
-    paddingBottom: 18,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.background,
-  },
-  submitErrorText: {
-    marginBottom: 10,
-    fontSize: 13,
-    color: colors.negative,
-  },
-  dangerSection: {
-    backgroundColor: colors.card,
-    borderRadius: 22,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 14,
-  },
-  dangerTitle: {
+    marginTop: 7,
     fontSize: 12,
+    fontWeight: '500',
     color: colors.negative,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    fontWeight: '800',
-  },
-  dangerBody: {
-    marginTop: 10,
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.textSecondary,
-  },
-  deleteButton: {
-    marginTop: 16,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.negative,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.card,
-  },
-  deleteButtonDisabled: {
-    opacity: 0.6,
-  },
-  deleteButtonText: {
-    color: colors.negative,
-    fontSize: 15,
-    fontWeight: '700',
   },
 });

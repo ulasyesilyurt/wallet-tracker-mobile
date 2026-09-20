@@ -1,16 +1,31 @@
-import React, {useMemo, useState} from 'react';
+import React, {useMemo, useRef, useState} from 'react';
 import {
-  ActivityIndicator,
-  Pressable,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
-import {SafeAreaScrollScreen} from '../components/SafeAreaScreen';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {createWallet} from '../api/wallets';
-import {colors} from '../theme/colors';
+import {
+  FormActionBar,
+  FormField,
+  PushedScreenHeader,
+  SegmentedChainSelect,
+} from '../components/WalletManagementUI';
+import {SafeAreaScreen} from '../components/SafeAreaScreen';
+import {ListSectionHeader, SettingRow} from '../components/SettingsUI';
+import {
+  getWalletFormScrollBottomPadding,
+  getWalletManagementBottomInset,
+  getWalletManagementLayout,
+  walletManagementColors as colors,
+} from '../theme/walletManagement';
 import type {Wallet, WalletTrackType} from '../types/wallet';
 import {SUPPORTED_WALLET_CHAIN_OPTIONS} from '../utils/chains';
 
@@ -41,25 +56,35 @@ function normalizeAddress(value: string) {
 }
 
 export function AddWalletScreen({onBack, onSaved}: AddWalletScreenProps) {
+  const {width} = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const layout = getWalletManagementLayout(width);
+  const platform = Platform.OS === 'ios' ? 'ios' : 'android';
+  const bottomInset = getWalletManagementBottomInset(platform, insets.bottom);
+  const labelRef = useRef<TextInput>(null);
   const [address, setAddress] = useState('');
-  const [selectedChains, setSelectedChains] = useState<string[]>([DEFAULT_CHAIN_ID]);
+  const [selectedChains, setSelectedChains] = useState<string[]>([
+    DEFAULT_CHAIN_ID,
+  ]);
   const [label, setLabel] = useState('');
-  const [trackTypesState, setTrackTypesState] = useState<TrackTypeState>(INITIAL_TRACK_TYPE_STATE);
+  const [trackTypesState, setTrackTypesState] =
+    useState<TrackTypeState>(INITIAL_TRACK_TYPE_STATE);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [addressError, setAddressError] = useState<string | null>(null);
   const [chainsError, setChainsError] = useState<string | null>(null);
   const [trackTypesError, setTrackTypesError] = useState<string | null>(null);
 
-  const selectedTrackTypes = useMemo(() => {
-    return TRACK_TYPE_OPTIONS.filter(option => trackTypesState[option.key]).map(option => option.key);
-  }, [trackTypesState]);
+  const selectedTrackTypes = useMemo(
+    () =>
+      TRACK_TYPE_OPTIONS.filter(option => trackTypesState[option.key]).map(
+        option => option.key,
+      ),
+    [trackTypesState],
+  );
 
   function toggleTrackType(trackType: WalletTrackType, nextValue: boolean) {
-    setTrackTypesState(current => ({
-      ...current,
-      [trackType]: nextValue,
-    }));
+    setTrackTypesState(current => ({...current, [trackType]: nextValue}));
   }
 
   function toggleChain(chainId: string) {
@@ -68,10 +93,7 @@ export function AddWalletScreen({onBack, onSaved}: AddWalletScreenProps) {
         ? current.filter(value => value !== chainId)
         : [...current, chainId];
 
-      if (chainsError && nextChains.length > 0) {
-        setChainsError(null);
-      }
-
+      if (chainsError && nextChains.length > 0) setChainsError(null);
       return nextChains;
     });
   }
@@ -104,18 +126,13 @@ export function AddWalletScreen({onBack, onSaved}: AddWalletScreenProps) {
       setTrackTypesError(null);
     }
 
-    return {
-      hasError,
-      normalizedAddress,
-    };
+    return {hasError, normalizedAddress};
   }
 
   async function handleSave() {
+    if (submitting) return;
     const validation = validateForm();
-
-    if (validation.hasError) {
-      return;
-    }
+    if (validation.hasError) return;
 
     setSubmitting(true);
     setSubmitError(null);
@@ -127,288 +144,158 @@ export function AddWalletScreen({onBack, onSaved}: AddWalletScreenProps) {
         trackTypes: selectedTrackTypes,
         enabledChains: selectedChains,
       });
-
       onSaved(wallet);
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'Could not save wallet');
+      setSubmitError(
+        error instanceof Error ? error.message : 'Could not save wallet',
+      );
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <SafeAreaScrollScreen style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <View style={styles.headerRow}>
-        <Pressable onPress={onBack} style={styles.headerButton} hitSlop={6}>
-          <Text style={styles.headerButtonText}>Back</Text>
-        </Pressable>
-      </View>
-
-      <View style={styles.hero}>
-        <Text style={styles.title}>Add wallet</Text>
-        <Text style={styles.subtitle}>Track a wallet and choose which activity should trigger notifications.</Text>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.label}>Wallet address</Text>
-        <TextInput
-          autoCapitalize="none"
-          autoCorrect={false}
-          placeholder="0x..."
-          placeholderTextColor={colors.textTertiary}
-          style={[styles.input, addressError ? styles.inputError : null]}
-          value={address}
-          onChangeText={value => {
-            setAddress(value);
-            if (addressError) {
-              setAddressError(null);
-            }
+    <SafeAreaScreen style={styles.screen}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardAvoider}
+      >
+        <ScrollView
+          contentContainerStyle={{
+            paddingHorizontal: layout.gutter,
+            paddingBottom: getWalletFormScrollBottomPadding(
+              width,
+              platform,
+              insets.bottom,
+            ),
           }}
-        />
-        {addressError ? <Text style={styles.errorText}>{addressError}</Text> : null}
-      </View>
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
+          onScrollBeginDrag={Keyboard.dismiss}
+          scrollIndicatorInsets={{bottom: bottomInset}}
+          showsVerticalScrollIndicator={false}
+        >
+          <PushedScreenHeader
+            title="Add wallet"
+            onBack={onBack}
+            description="Watch any address. Nothing is ever signed or spent — Wallet Tracker only reads."
+          />
 
-      <View style={styles.section}>
-        <Text style={styles.label}>Label</Text>
-        <TextInput
-          autoCapitalize="words"
-          placeholder="My wallet"
-          placeholderTextColor={colors.textTertiary}
-          style={styles.input}
-          value={label}
-          onChangeText={setLabel}
-        />
-      </View>
+          <View style={{marginTop: layout.sectionGap}}>
+            <FormField
+              autoCapitalize="none"
+              autoCorrect={false}
+              spellCheck={false}
+              blurOnSubmit={false}
+              label="Wallet address"
+              message={addressError}
+              mono
+              onChangeText={value => {
+                setAddress(value);
+                if (addressError) setAddressError(null);
+              }}
+              onSubmitEditing={() => labelRef.current?.focus()}
+              placeholder="0x…"
+              returnKeyType="next"
+              state={addressError ? 'error' : 'rest'}
+              value={address}
+            />
+          </View>
 
-      <View style={styles.section}>
-        <Text style={styles.label}>Chains</Text>
-        <View style={styles.chainOptionsRow}>
-          {SUPPORTED_WALLET_CHAIN_OPTIONS.map(option => {
-            const selected = selectedChains.includes(option.chainId);
+          <View style={{marginTop: layout.fieldGap}}>
+            <FormField
+              ref={labelRef}
+              autoCapitalize="words"
+              label="Label"
+              onChangeText={setLabel}
+              onSubmitEditing={Keyboard.dismiss}
+              placeholder="Main, Cold, Trading…"
+              returnKeyType="done"
+              value={label}
+            />
+          </View>
 
-            return (
-              <Pressable
-                key={option.chainId}
-                onPress={() => toggleChain(option.chainId)}
-                style={[
-                  styles.chainOptionSelected,
-                  styles.chainOptionSelectable,
-                  selected ? styles.chainOptionActive : null,
-                ]}>
-                <Text style={styles.chainOptionText}>{option.label}</Text>
-                <Text style={styles.chainOptionHint}>
-                  {selected ? 'Selected' : 'Tap to add'}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-        {chainsError ? <Text style={styles.errorText}>{chainsError}</Text> : null}
-      </View>
+          <View style={{marginTop: layout.sectionGap}}>
+            <ListSectionHeader first title="Network" />
+            <SegmentedChainSelect
+              options={SUPPORTED_WALLET_CHAIN_OPTIONS}
+              selectedValues={selectedChains}
+              onToggle={toggleChain}
+            />
+            {chainsError ? (
+              <Text accessibilityLiveRegion="polite" style={styles.errorText}>
+                {chainsError}
+              </Text>
+            ) : null}
+          </View>
 
-      <View style={styles.section}>
-        <Text style={styles.label}>Notifications</Text>
-        <View style={styles.preferenceCard}>
-          {TRACK_TYPE_OPTIONS.map(option => (
-            <View key={option.key} style={styles.preferenceRow}>
-              <Text style={styles.preferenceLabel}>{option.label}</Text>
-              <Switch
-                value={trackTypesState[option.key]}
-                onValueChange={value => {
-                  toggleTrackType(option.key, value);
-                  if (trackTypesError) {
-                    setTrackTypesError(null);
-                  }
-                }}
-                trackColor={{false: colors.border, true: colors.accent}}
-                thumbColor={trackTypesState[option.key] ? colors.primaryCtaFill : colors.textSecondary}
-              />
+          <View style={{marginTop: layout.sectionGap}}>
+            <ListSectionHeader first title="Alert me about" />
+            <View style={styles.preferenceRows}>
+              {TRACK_TYPE_OPTIONS.map(option => (
+                <SettingRow
+                  key={option.key}
+                  type="switch"
+                  label={option.label}
+                  switchValue={trackTypesState[option.key]}
+                  onPress={() => {
+                    toggleTrackType(option.key, !trackTypesState[option.key]);
+                    if (trackTypesError) setTrackTypesError(null);
+                  }}
+                />
+              ))}
             </View>
-          ))}
-        </View>
-        {trackTypesError ? <Text style={styles.errorText}>{trackTypesError}</Text> : null}
-      </View>
+            {trackTypesError ? (
+              <Text accessibilityLiveRegion="polite" style={styles.errorText}>
+                {trackTypesError}
+              </Text>
+            ) : null}
+          </View>
 
-      {submitError ? (
-        <View style={styles.submitErrorCard}>
-          <Text style={styles.submitErrorTitle}>Could not save wallet</Text>
-          <Text style={styles.submitErrorText}>{submitError}</Text>
-        </View>
-      ) : null}
+          {submitError ? (
+            <View style={styles.submitError}>
+              <Text style={styles.submitErrorTitle}>Could not save wallet</Text>
+              <Text style={styles.submitErrorBody}>{submitError}</Text>
+            </View>
+          ) : null}
+        </ScrollView>
 
-      <Pressable
-        style={[styles.saveButton, submitting ? styles.saveButtonDisabled : null]}
-        onPress={() => {
-          void handleSave();
-        }}
-        disabled={submitting}>
-        {submitting ? (
-          <ActivityIndicator color={colors.primaryCtaText} />
-        ) : (
-          <Text style={styles.saveButtonText}>Save wallet</Text>
-        )}
-      </Pressable>
-    </SafeAreaScrollScreen>
+        <FormActionBar
+          label="Save wallet"
+          onPress={handleSave}
+          busy={submitting}
+          disabled={false}
+          bottomInset={bottomInset}
+        />
+      </KeyboardAvoidingView>
+    </SafeAreaScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  content: {
-    paddingHorizontal: 18,
-    paddingTop: 20,
-    paddingBottom: 32,
-  },
-  headerRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-  },
-  headerButton: {
-    minWidth: 44,
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.elevated,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  headerButtonText: {
-    color: colors.textPrimary,
-    fontWeight: '700',
-  },
-  hero: {
-    marginTop: 18,
-    marginBottom: 18,
-  },
-  title: {
-    fontSize: 28,
-    lineHeight: 32,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  subtitle: {
-    marginTop: 8,
-    fontSize: 15,
-    lineHeight: 22,
-    color: colors.textSecondary,
-  },
-  section: {
-    marginBottom: 18,
-  },
-  chainOptionsRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  label: {
-    marginBottom: 8,
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  input: {
-    backgroundColor: colors.elevated,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    fontSize: 15,
-    color: colors.textPrimary,
-  },
-  inputError: {
-    borderColor: colors.negative,
+  screen: {flex: 1, backgroundColor: colors.background},
+  keyboardAvoider: {flex: 1},
+  preferenceRows: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.divider,
   },
   errorText: {
-    marginTop: 8,
-    fontSize: 13,
+    marginTop: 7,
+    fontSize: 12,
+    fontWeight: '500',
     color: colors.negative,
   },
-  chainOptionSelected: {
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
+  submitError: {
+    marginTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: colors.negative,
+    paddingTop: 12,
   },
-  chainOptionSelectable: {
-    flex: 1,
-  },
-  chainOptionActive: {
-    backgroundColor: colors.elevated,
-    borderColor: colors.accent,
-  },
-  chainOptionText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  chainOptionHint: {
+  submitErrorTitle: {fontSize: 14, fontWeight: '700', color: colors.negative},
+  submitErrorBody: {
     marginTop: 4,
-    fontSize: 13,
+    fontSize: 12.5,
+    lineHeight: 18,
     color: colors.textSecondary,
-  },
-  preferenceCard: {
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  preferenceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  preferenceLabel: {
-    flex: 1,
-    paddingRight: 12,
-    fontSize: 15,
-    color: colors.textPrimary,
-  },
-  submitErrorCard: {
-    marginBottom: 16,
-    borderRadius: 16,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.negative,
-    padding: 14,
-  },
-  submitErrorTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.negative,
-  },
-  submitErrorText: {
-    marginTop: 4,
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  saveButton: {
-    marginTop: 8,
-    minHeight: 52,
-    borderRadius: 999,
-    backgroundColor: colors.primaryCtaFill,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  saveButtonDisabled: {
-    opacity: 0.75,
-  },
-  saveButtonText: {
-    color: colors.primaryCtaText,
-    fontSize: 15,
-    fontWeight: '700',
   },
 });
