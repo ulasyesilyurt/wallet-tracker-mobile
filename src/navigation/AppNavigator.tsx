@@ -262,7 +262,9 @@ export function AppNavigator() {
       />
     );
   } else if (activeTab === 'activity') {
-    tabContent = <ActivityScreen />;
+    tabContent = (
+      <ActivityScreen onManageWallets={() => setActiveTab('wallets')} />
+    );
   } else if (activeTab === 'alerts') {
     tabContent = (
       <NotificationHistoryScreen
