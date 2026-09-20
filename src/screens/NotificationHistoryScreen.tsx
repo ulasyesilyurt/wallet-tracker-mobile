@@ -633,7 +633,6 @@ const styles = StyleSheet.create({
   grow: { flexGrow: 1 },
   sectionHeader: {
     height: 28,
-    paddingHorizontal: 2,
     paddingBottom: 10,
     backgroundColor: colors.background,
     flexDirection: 'row',

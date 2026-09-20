@@ -299,6 +299,12 @@ describe('NotificationHistoryScreen', () => {
       }),
     ).toHaveLength(0);
     expect(onUnreadCountRefresh).toHaveBeenCalledTimes(1);
+    const earlierTitle = renderer!.root
+      .findAllByType(Text)
+      .find(node => node.props.children === 'Earlier');
+    expect(
+      StyleSheet.flatten(earlierTitle!.parent!.props.style).paddingHorizontal,
+    ).toBeUndefined();
 
     const sections = renderer!.root.findByType(SectionList).props.sections;
     expect(sections).toHaveLength(1);
