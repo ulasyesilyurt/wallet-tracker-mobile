@@ -1,6 +1,6 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import { SectionList, StyleSheet, Text } from 'react-native';
+import { ScrollView, SectionList, StyleSheet, Text } from 'react-native';
 import { NotificationHistoryScreen } from '../src/screens/NotificationHistoryScreen';
 import {
   getNotificationHistory,
@@ -63,6 +63,26 @@ function notification(
     ...overrides,
     walletEvent: { ...item.walletEvent, ...(overrides.walletEvent ?? {}) },
   };
+}
+
+function notificationFromDaysAgo(
+  daysAgo: number,
+  overrides: Partial<NotificationHistoryItem> = {},
+): NotificationHistoryItem {
+  const timestamp = new Date(
+    Date.now() - daysAgo * 24 * 60 * 60 * 1000,
+  ).toISOString();
+  return notification({
+    ...overrides,
+    createdAt: timestamp,
+    sentAt: timestamp,
+    walletEvent: {
+      ...item.walletEvent,
+      ...(overrides.walletEvent ?? {}),
+      createdAt: timestamp,
+      occurredAt: timestamp,
+    },
+  });
 }
 
 async function flush() {
@@ -236,6 +256,125 @@ describe('NotificationHistoryScreen', () => {
     act(() => moves.props.onPress());
     expect(allText(renderer!)).toContain('Large outgoing transfer');
     expect(mockedGetNotificationHistory).toHaveBeenCalledTimes(1);
+  });
+
+  it('hides filters and mark-all while preserving older history in quiet state', async () => {
+    const olderAlert = notificationFromDaysAgo(8, {
+      id: 'notification-older',
+      title: 'Older warning',
+    });
+    mockedGetNotificationHistory.mockResolvedValue({
+      items: [olderAlert],
+      pagination: { limit: 50, offset: 0, hasMore: false },
+    });
+    const onUnreadCountRefresh = jest.fn().mockResolvedValue(undefined);
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <NotificationHistoryScreen
+          onOpenWalletHistory={jest.fn()}
+          unreadCount={1}
+          onUnreadCountRefresh={onUnreadCountRefresh}
+        />,
+      );
+    });
+    mounted.push(renderer!);
+    await flush();
+
+    expect(allText(renderer!)).toContain('Nothing new · all caught up');
+    expect(allText(renderer!)).toContain('All quiet');
+    expect(allText(renderer!)).toContain('Earlier');
+    expect(allText(renderer!)).toContain('Older warning');
+    expect(
+      renderer!.root.findAllByProps({ accessibilityRole: 'tab' }),
+    ).toHaveLength(0);
+    expect(
+      renderer!.root
+        .findAllByType(ScrollView)
+        .filter(scrollView => scrollView.props.horizontal),
+    ).toHaveLength(0);
+    expect(
+      renderer!.root.findAllByProps({
+        accessibilityLabel: 'Mark all alerts read',
+      }),
+    ).toHaveLength(0);
+    expect(onUnreadCountRefresh).toHaveBeenCalledTimes(1);
+
+    const sections = renderer!.root.findByType(SectionList).props.sections;
+    expect(sections).toHaveLength(1);
+    expect(sections[0].title).toBe('Earlier');
+    expect(
+      sections[0].data.map((alert: NotificationHistoryItem) => alert.id),
+    ).toEqual(['notification-older']);
+  });
+
+  it('shows filters and mark-all when the recent window contains an alert', async () => {
+    mockedGetNotificationHistory.mockResolvedValue({
+      items: [item],
+      pagination: { limit: 50, offset: 0, hasMore: false },
+    });
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <NotificationHistoryScreen
+          onOpenWalletHistory={jest.fn()}
+          unreadCount={1}
+        />,
+      );
+    });
+    mounted.push(renderer!);
+    await flush();
+
+    expect(
+      renderer!.root.findByProps({ accessibilityLabel: 'All alerts, 1' }),
+    ).toBeTruthy();
+    expect(
+      renderer!.root.findByProps({
+        accessibilityLabel: 'Mark all alerts read',
+      }),
+    ).toBeTruthy();
+  });
+
+  it('restores the filter strip when refresh brings in a recent alert', async () => {
+    const olderAlert = notificationFromDaysAgo(8, {
+      id: 'notification-older',
+      title: 'Older warning',
+    });
+    mockedGetNotificationHistory
+      .mockResolvedValueOnce({
+        items: [olderAlert],
+        pagination: { limit: 50, offset: 0, hasMore: false },
+      })
+      .mockResolvedValueOnce({
+        items: [item, olderAlert],
+        pagination: { limit: 50, offset: 0, hasMore: false },
+      });
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <NotificationHistoryScreen onOpenWalletHistory={jest.fn()} />,
+      );
+    });
+    mounted.push(renderer!);
+    await flush();
+
+    expect(
+      renderer!.root.findAllByProps({ accessibilityRole: 'tab' }),
+    ).toHaveLength(0);
+
+    await act(async () => {
+      renderer!.root
+        .findByType(SectionList)
+        .props.refreshControl.props.onRefresh();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await flush();
+
+    expect(
+      renderer!.root.findByProps({ accessibilityLabel: 'All alerts, 2' }),
+    ).toBeTruthy();
+    expect(allText(renderer!)).toContain('Older warning');
   });
 
   it('appends delivery-based pagination records without deduplicating events', async () => {

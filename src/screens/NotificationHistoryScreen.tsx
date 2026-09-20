@@ -142,8 +142,8 @@ export function NotificationHistoryScreen({
     [items],
   );
   const filteredItems = useMemo(
-    () => filterNotificationHistory(items, activeFilter),
-    [activeFilter, items],
+    () => filterNotificationHistory(items, quiet ? 'all' : activeFilter),
+    [activeFilter, items, quiet],
   );
   const sections = useMemo(
     () => groupNotificationHistory(filteredItems, quiet),
@@ -251,7 +251,7 @@ export function NotificationHistoryScreen({
             {'Alerts'}
           </Text>
           <View style={styles.headerSpacer} />
-          {hasUnreadToMark ? (
+          {!quiet && hasUnreadToMark ? (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Mark all alerts read"
@@ -276,7 +276,7 @@ export function NotificationHistoryScreen({
         </View>
       </View>
 
-      {!loading && items.length > 0 ? (
+      {!loading && recentCount > 0 ? (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
