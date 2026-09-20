@@ -289,6 +289,8 @@ export function AppNavigator() {
     tabContent = (
       <SettingsScreen
         onOpenNotificationHistory={() => setRoute('notifications')}
+        onManageWallets={() => setActiveTab('wallets')}
+        onAddWallet={() => setRoute('add')}
         onLogout={() => void handleLogout()}
       />
     );
