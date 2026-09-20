@@ -14,10 +14,12 @@ export function ListSectionHeader({
   title,
   meta,
   first = false,
+  compact = false,
 }: {
   title: string;
   meta?: string | null;
   first?: boolean;
+  compact?: boolean;
 }) {
   const { width } = useWindowDimensions();
   const layout = getSettingsLayout(width);
@@ -26,7 +28,11 @@ export function ListSectionHeader({
     <View
       style={[
         styles.sectionHeader,
-        first
+        compact
+          ? layout.narrow
+            ? styles.sectionHeaderCompactNarrow
+            : styles.sectionHeaderCompact
+          : first
           ? styles.sectionHeaderFirst
           : layout.narrow
           ? styles.sectionHeaderNarrow
@@ -183,6 +189,12 @@ const styles = StyleSheet.create({
   sectionHeaderFirst: { marginTop: 0 },
   sectionHeaderNarrow: { marginTop: 20 },
   sectionHeaderRegular: { marginTop: 22 },
+  sectionHeaderCompact: { height: 29, marginTop: 16, paddingBottom: 8 },
+  sectionHeaderCompactNarrow: {
+    height: 27,
+    marginTop: 14,
+    paddingBottom: 7,
+  },
   sectionTitle: {
     flex: 1,
     minWidth: 0,

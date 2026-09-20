@@ -14,6 +14,13 @@ type ActivityRowProps = {
   onPress: () => void;
 };
 
+type EventTileProps = {
+  kind: ActivityKind;
+  size: number;
+  radius: number;
+  glyphSize: number;
+};
+
 const kindPresentation: Record<
   ActivityKind,
   { glyph: string; tile: object; glyphColor: string }
@@ -44,12 +51,12 @@ const kindPresentation: Record<
     glyphColor: colors.warning,
   },
   other: {
-    glyph: '•',
+    glyph: '⌗',
     tile: { backgroundColor: colors.neutralTint },
     glyphColor: colors.textSecondary,
   },
   failed: {
-    glyph: '×',
+    glyph: '✕',
     tile: { backgroundColor: 'rgba(245,85,93,0.12)' },
     glyphColor: colors.negative,
   },
@@ -60,6 +67,64 @@ const kindPresentation: Record<
   },
 };
 
+export function EventTile({
+  kind,
+  size,
+  radius,
+  glyphSize,
+}: EventTileProps) {
+  const presentation = kindPresentation[kind];
+
+  return (
+    <View
+      accessible={false}
+      importantForAccessibility="no-hide-descendants"
+      style={[
+        styles.tile,
+        presentation.tile,
+        { width: size, height: size, borderRadius: radius },
+      ]}
+    >
+      <Text
+        maxFontSizeMultiplier={1.2}
+        style={[
+          styles.glyph,
+          { fontSize: glyphSize, color: presentation.glyphColor },
+        ]}
+      >
+        {presentation.glyph}
+      </Text>
+    </View>
+  );
+}
+
+export function WalletChip({
+  name,
+  fontSize = 12,
+  color = colors.textTertiary,
+}: {
+  name: string;
+  fontSize?: number;
+  color?: string;
+}) {
+  const initial = name.trim().charAt(0).toUpperCase() || 'W';
+
+  return (
+    <View style={styles.walletChip}>
+      <View style={styles.walletAvatar}>
+        <Text style={styles.walletInitial}>{initial}</Text>
+      </View>
+      <Text
+        numberOfLines={1}
+        maxFontSizeMultiplier={1.2}
+        style={[styles.walletName, { fontSize, color }]}
+      >
+        {name}
+      </Text>
+    </View>
+  );
+}
+
 export function ActivityRow({
   item,
   width,
@@ -67,7 +132,6 @@ export function ActivityRow({
   onPress,
 }: ActivityRowProps) {
   const layout = getActivityLayout(width);
-  const presentation = kindPresentation[item.kind];
   const hasFact = Boolean(item.factPrefix || item.factAddress || item.usd);
   const status =
     item.kind === 'failed'
@@ -75,7 +139,6 @@ export function ActivityRow({
       : item.kind === 'pending'
       ? 'PENDING'
       : null;
-  const initial = item.walletName.trim().charAt(0).toUpperCase() || 'W';
 
   return (
     <Pressable
@@ -93,27 +156,12 @@ export function ActivityRow({
         pressed && styles.pressed,
       ]}
     >
-      <View
-        style={[
-          styles.tile,
-          presentation.tile,
-          {
-            width: layout.tileSize,
-            height: layout.tileSize,
-            borderRadius: layout.tileRadius,
-          },
-        ]}
-      >
-        <Text
-          maxFontSizeMultiplier={1.2}
-          style={[
-            styles.glyph,
-            { fontSize: layout.glyphSize, color: presentation.glyphColor },
-          ]}
-        >
-          {presentation.glyph}
-        </Text>
-      </View>
+      <EventTile
+        kind={item.kind}
+        size={layout.tileSize}
+        radius={layout.tileRadius}
+        glyphSize={layout.glyphSize}
+      />
 
       <View style={styles.body}>
         <View style={styles.titleLine}>
@@ -199,18 +247,7 @@ export function ActivityRow({
         <View
           style={[styles.attribution, { marginTop: layout.attributionTop }]}
         >
-          <View style={styles.walletChip}>
-            <View style={styles.walletAvatar}>
-              <Text style={styles.walletInitial}>{initial}</Text>
-            </View>
-            <Text
-              numberOfLines={1}
-              maxFontSizeMultiplier={1.2}
-              style={[styles.walletName, { fontSize: layout.walletNameSize }]}
-            >
-              {item.walletName}
-            </Text>
-          </View>
+          <WalletChip name={item.walletName} fontSize={layout.walletNameSize} />
           <NetworkBadge chainId={item.chainId} narrow={layout.narrow} />
           <Text
             numberOfLines={1}
@@ -309,9 +346,9 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   walletAvatar: {
-    width: 17,
-    height: 17,
-    borderRadius: 6,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(79,125,243,0.13)',
