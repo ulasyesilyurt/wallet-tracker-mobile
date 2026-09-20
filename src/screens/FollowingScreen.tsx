@@ -20,6 +20,7 @@ import { WalletsLoadingRows } from '../components/WalletsLoadingRows';
 import { walletsColors as colors, getWalletsLayout } from '../theme/wallets';
 import type { Wallet } from '../types/wallet';
 import { logPortfolioBalanceDecision } from '../utils/performance';
+import { useTabBarInset } from '../navigation/TabBarInsetContext';
 
 type FollowingScreenProps = {
   refreshKey?: number;
@@ -36,6 +37,7 @@ export function FollowingScreen({
 }: FollowingScreenProps) {
   const { width } = useWindowDimensions();
   const layout = getWalletsLayout(width);
+  const tabBarInset = useTabBarInset();
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -272,6 +274,7 @@ export function FollowingScreen({
           keyExtractor={item => item.id}
           contentContainerStyle={[
             styles.listContent,
+            { paddingBottom: Math.max(8, tabBarInset) },
             wallets.length === 0 && styles.emptyContent,
           ]}
           refreshControl={
@@ -341,6 +344,7 @@ export function FollowingScreen({
             />
           }
           showsVerticalScrollIndicator={false}
+          scrollIndicatorInsets={{ bottom: tabBarInset }}
         />
       )}
     </SafeAreaScreen>

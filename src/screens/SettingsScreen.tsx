@@ -12,6 +12,7 @@ import { ListSectionHeader, SettingRow } from '../components/SettingsUI';
 import { SafeAreaScreen } from '../components/SafeAreaScreen';
 import { appInfo } from '../config/app';
 import { getSettingsLayout, settingsColors as colors } from '../theme/settings';
+import { useTabBarInset } from '../navigation/TabBarInsetContext';
 
 type SettingsScreenProps = {
   onOpenNotificationHistory: () => void;
@@ -52,6 +53,7 @@ export function SettingsScreen({
 }: SettingsScreenProps) {
   const { width } = useWindowDimensions();
   const layout = getSettingsLayout(width);
+  const tabBarInset = useTabBarInset();
   const [walletCount, setWalletCount] = useState<number | null>(null);
   const [walletsLoading, setWalletsLoading] = useState(true);
   const [walletsError, setWalletsError] = useState(false);
@@ -142,8 +144,12 @@ export function SettingsScreen({
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: Math.max(10, tabBarInset) },
+        ]}
         showsVerticalScrollIndicator={false}
+        scrollIndicatorInsets={{ bottom: tabBarInset }}
       >
         {capabilities.notificationHistory ? (
           <SettingsSection title="Alerts" first>

@@ -35,6 +35,7 @@ import {
   type ActivityFilterOption,
   type ActivitySection,
 } from '../utils/activityPresentation';
+import { useTabBarInset } from '../navigation/TabBarInsetContext';
 
 const PAGE_SIZE = 50;
 
@@ -45,6 +46,7 @@ type ActivityScreenProps = {
 export function ActivityScreen({ onManageWallets }: ActivityScreenProps) {
   const { width } = useWindowDimensions();
   const layout = getActivityLayout(width);
+  const tabBarInset = useTabBarInset();
   const [events, setEvents] = useState<WalletEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -218,6 +220,7 @@ export function ActivityScreen({ onManageWallets }: ActivityScreenProps) {
             stickySectionHeadersEnabled
             contentContainerStyle={[
               styles.listContent,
+              { paddingBottom: Math.max(12, tabBarInset) },
               sections.length === 0 && styles.grow,
             ]}
             refreshControl={
@@ -264,6 +267,7 @@ export function ActivityScreen({ onManageWallets }: ActivityScreenProps) {
             onEndReached={() => loadMore()}
             onEndReachedThreshold={0.35}
             showsVerticalScrollIndicator={false}
+            scrollIndicatorInsets={{ bottom: tabBarInset }}
           />
         </View>
       )}

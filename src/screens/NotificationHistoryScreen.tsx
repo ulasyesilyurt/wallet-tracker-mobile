@@ -38,6 +38,7 @@ import {
   type NotificationHistoryFilter,
   type NotificationHistorySection,
 } from '../utils/notificationHistoryPresentation';
+import { useTabBarInset } from '../navigation/TabBarInsetContext';
 
 type NotificationHistoryScreenProps = {
   onBack?: () => void;
@@ -54,6 +55,7 @@ export function NotificationHistoryScreen({
 }: NotificationHistoryScreenProps) {
   const { width } = useWindowDimensions();
   const layout = getAlertsLayout(width);
+  const tabBarInset = useTabBarInset();
   const [items, setItems] = useState<NotificationHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -358,6 +360,7 @@ export function NotificationHistoryScreen({
           stickySectionHeadersEnabled
           contentContainerStyle={[
             styles.listContent,
+            { paddingBottom: Math.max(8, tabBarInset) },
             sections.length === 0 && styles.grow,
           ]}
           refreshControl={
@@ -418,6 +421,7 @@ export function NotificationHistoryScreen({
           onEndReached={() => void loadMore()}
           onEndReachedThreshold={0.35}
           showsVerticalScrollIndicator={false}
+          scrollIndicatorInsets={{ bottom: tabBarInset }}
         />
       )}
     </SafeAreaScreen>

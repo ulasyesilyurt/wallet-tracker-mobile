@@ -1,7 +1,6 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import messaging, {type FirebaseMessagingTypes} from '@react-native-firebase/messaging';
-import {Pressable, StyleSheet, Text, View} from 'react-native';
-import Ionicons from 'react-native-vector-icons/Ionicons';
+import {StyleSheet, View} from 'react-native';
 import {getWalletById} from '../api/wallets';
 import {useAuth} from '../auth/AuthContext';
 import {FollowingScreen} from '../screens/FollowingScreen';
@@ -16,7 +15,9 @@ import {colors} from '../theme/colors';
 import type {Wallet} from '../types/wallet';
 import {parseNotificationTarget} from '../notifications/notificationTarget';
 import {useNotificationUnreadCount} from '../notifications/useNotificationUnreadCount';
-import {NotificationUnreadBadge} from '../components/NotificationUnreadBadge';
+import {FloatingTabBar} from '../components/FloatingTabBar';
+import {TabBarInsetProvider} from './TabBarInsetContext';
+import {APP_TABS, type TabId} from './appTabs';
 
 type Route =
   | 'tabs'
@@ -25,7 +26,6 @@ type Route =
   | 'alertSettings'
   | 'add'
   | 'notifications';
-type TabId = 'wallets' | 'activity' | 'alerts' | 'settings';
 type NotificationEventTarget = {
   eventId: string | null;
   openKey: number;
@@ -298,69 +298,17 @@ export function AppNavigator() {
 
   return (
     <View style={styles.screen}>
-      <View style={styles.content}>{tabContent}</View>
-      <View style={styles.tabBar}>
-        <TabButton
-          iconName="wallet-outline"
-          label="Wallets"
-          active={activeTab === 'wallets'}
-          onPress={() => setActiveTab('wallets')}
-        />
-        <TabButton
-          iconName="analytics-outline"
-          label="Activity"
-          active={activeTab === 'activity'}
-          onPress={() => setActiveTab('activity')}
-        />
-        <TabButton
-          iconName="diamond-outline"
-          label="Alerts"
-          badgeCount={unreadCount ?? 0}
-          active={activeTab === 'alerts'}
-          onPress={() => setActiveTab('alerts')}
-        />
-        <TabButton
-          iconName="settings-outline"
-          label="Settings"
-          active={activeTab === 'settings'}
-          onPress={() => setActiveTab('settings')}
-        />
-      </View>
+      <TabBarInsetProvider>
+        <View style={styles.content}>{tabContent}</View>
+      </TabBarInsetProvider>
+      <FloatingTabBar
+        tabs={APP_TABS}
+        activeTab={activeTab}
+        badgeTab="alerts"
+        unreadCount={unreadCount ?? 0}
+        onSelect={setActiveTab}
+      />
     </View>
-  );
-}
-
-function TabButton({
-  iconName,
-  label,
-  badgeCount = 0,
-  active,
-  onPress,
-}: {
-  iconName: string;
-  label: string;
-  badgeCount?: number;
-  active: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={
-        badgeCount > 0 ? `${label}, ${badgeCount} unread` : label
-      }
-      style={[styles.tabButton, active ? styles.tabButtonActive : null]}
-      onPress={onPress}>
-      <View style={styles.tabIconWrap}>
-        <Ionicons
-          name={iconName}
-          size={16}
-          color={active ? colors.textPrimary : colors.textSecondary}
-        />
-        <NotificationUnreadBadge count={badgeCount} />
-      </View>
-      <Text style={[styles.tabButtonText, active ? styles.tabButtonTextActive : null]}>{label}</Text>
-    </Pressable>
   );
 }
 
@@ -371,47 +319,5 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-  },
-  tabBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 26,
-    marginHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 12,
-    paddingHorizontal: 10,
-    paddingTop: 6,
-    paddingBottom: 8,
-    gap: 8,
-    elevation: 6,
-  },
-  tabButton: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 13,
-    paddingVertical: 5,
-    backgroundColor: 'transparent',
-  },
-  tabButtonActive: {
-    backgroundColor: colors.elevated,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  tabIconWrap: {
-    position: 'relative',
-    marginBottom: 1,
-  },
-  tabButtonText: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  tabButtonTextActive: {
-    color: colors.textPrimary,
-    fontWeight: '700',
   },
 });
