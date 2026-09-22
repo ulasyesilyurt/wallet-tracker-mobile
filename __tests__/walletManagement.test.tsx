@@ -1,7 +1,8 @@
 import React from 'react';
 import {Alert, ScrollView, Text} from 'react-native';
 import TestRenderer, {act} from 'react-test-renderer';
-import {createWallet, deleteWallet, updateWallet} from '../src/api/wallets';
+import {ApiError} from '../src/api/client';
+import {createWallet, deleteWallet, getWallets, updateWallet} from '../src/api/wallets';
 import {
   getWalletAlertSettings,
   updateWalletAlertSettings,
@@ -28,6 +29,7 @@ jest.mock('../src/api/wallets', () => ({
   createWallet: jest.fn(),
   updateWallet: jest.fn(),
   deleteWallet: jest.fn(),
+  getWallets: jest.fn(),
 }));
 jest.mock('../src/api/walletAlertSettings', () => ({
   getWalletAlertSettings: jest.fn(),
@@ -96,6 +98,7 @@ beforeEach(() => {
   (createWallet as jest.Mock).mockResolvedValue(wallet);
   (updateWallet as jest.Mock).mockResolvedValue(wallet);
   (deleteWallet as jest.Mock).mockResolvedValue({id: wallet.id, deleted: true});
+  (getWallets as jest.Mock).mockResolvedValue([wallet]);
   (getWalletAlertSettings as jest.Mock).mockResolvedValue(alertSettings);
   (updateWalletAlertSettings as jest.Mock).mockResolvedValue(alertSettings);
 });
@@ -219,6 +222,66 @@ it('prevents a double Add submission while showing the busy state', async () => 
   act(() => renderer!.unmount());
 });
 
+it('keeps ordinary Add errors on the existing save path', async () => {
+  (createWallet as jest.Mock).mockRejectedValue(new Error('Invalid wallet'));
+  const onSaved = jest.fn();
+  let renderer: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(<AddWalletScreen onBack={jest.fn()} onSaved={onSaved} />);
+  });
+  act(() => renderer!.root.findByProps({accessibilityLabel: 'Wallet address'}).props.onChangeText(wallet.address));
+  await act(async () => {
+    await buttonWithText(renderer!, 'Save wallet').props.onPress();
+  });
+  expect(textContent(renderer!.root)).toContain('Invalid wallet');
+  expect(getWallets).not.toHaveBeenCalled();
+  expect(onSaved).not.toHaveBeenCalled();
+  act(() => renderer!.unmount());
+});
+
+it('reconciles Add sync failure without repeating create', async () => {
+  (createWallet as jest.Mock).mockRejectedValue(
+    new ApiError(503, 'saved', 'ALCHEMY_WEBHOOK_SYNC_FAILED'),
+  );
+  const onSaved = jest.fn();
+  let renderer: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(<AddWalletScreen onBack={jest.fn()} onSaved={onSaved} />);
+  });
+  act(() => renderer!.root.findByProps({accessibilityLabel: 'Wallet address'}).props.onChangeText(wallet.address.toUpperCase().replace('0X', '0x')));
+  await act(async () => {
+    await buttonWithText(renderer!, 'Save wallet').props.onPress();
+  });
+  expect(createWallet).toHaveBeenCalledTimes(1);
+  expect(getWallets).toHaveBeenCalledTimes(1);
+  expect(onSaved).toHaveBeenCalledWith(wallet, expect.stringContaining('saved'), [wallet]);
+  act(() => renderer!.unmount());
+});
+
+it('offers only a read-only refresh when Add reconciliation fails', async () => {
+  (createWallet as jest.Mock).mockRejectedValue(
+    new ApiError(503, 'saved', 'ALCHEMY_WEBHOOK_SYNC_FAILED'),
+  );
+  (getWallets as jest.Mock).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce([wallet]);
+  const onSaved = jest.fn();
+  let renderer: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(<AddWalletScreen onBack={jest.fn()} onSaved={onSaved} />);
+  });
+  act(() => renderer!.root.findByProps({accessibilityLabel: 'Wallet address'}).props.onChangeText(wallet.address));
+  await act(async () => {
+    await buttonWithText(renderer!, 'Save wallet').props.onPress();
+  });
+  expect(textContent(renderer!.root)).toContain('could not refresh your wallet list');
+  await act(async () => {
+    await buttonWithText(renderer!, 'Refresh wallet state').props.onPress();
+  });
+  expect(createWallet).toHaveBeenCalledTimes(1);
+  expect(getWallets).toHaveBeenCalledTimes(2);
+  expect(onSaved).toHaveBeenCalledWith(wallet, expect.any(String), [wallet]);
+  act(() => renderer!.unmount());
+});
+
 it('prefills editable Edit fields and preserves the PATCH payload', async () => {
   const onSaved = jest.fn();
   let renderer: TestRenderer.ReactTestRenderer;
@@ -276,6 +339,171 @@ it('preserves the existing delete confirmation without deleting on row press', a
     expect.any(Array),
   );
   expect(deleteWallet).not.toHaveBeenCalled();
+  alert.mockRestore();
+  act(() => renderer!.unmount());
+});
+
+it('reconciles Edit sync failure from the authoritative wallet without another PATCH', async () => {
+  const updatedWallet = {...wallet, label: 'Renamed'};
+  (updateWallet as jest.Mock).mockRejectedValue(
+    new ApiError(503, 'saved', 'ALCHEMY_WEBHOOK_SYNC_FAILED'),
+  );
+  (getWallets as jest.Mock).mockResolvedValue([updatedWallet]);
+  const onSaved = jest.fn();
+  let renderer: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(
+      <WalletEditScreen wallet={wallet} onBack={jest.fn()} onOpenAlertSettings={jest.fn()}
+        onSaved={onSaved} onDeleted={jest.fn()} />,
+    );
+  });
+  await act(async () => {
+    await buttonWithText(renderer!, 'Save changes').props.onPress();
+  });
+  expect(updateWallet).toHaveBeenCalledTimes(1);
+  expect(getWallets).toHaveBeenCalledTimes(1);
+  expect(onSaved).toHaveBeenCalledWith(updatedWallet, expect.stringContaining('saved'), [updatedWallet]);
+  act(() => renderer!.unmount());
+});
+
+it('keeps ordinary Edit errors on the existing error path', async () => {
+  (updateWallet as jest.Mock).mockRejectedValue(new Error('Edit rejected'));
+  let renderer: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(
+      <WalletEditScreen wallet={wallet} onBack={jest.fn()} onOpenAlertSettings={jest.fn()}
+        onSaved={jest.fn()} onDeleted={jest.fn()} />,
+    );
+  });
+  await act(async () => {
+    await buttonWithText(renderer!, 'Save changes').props.onPress();
+  });
+  expect(textContent(renderer!.root)).toContain('Edit rejected');
+  expect(getWallets).not.toHaveBeenCalled();
+  act(() => renderer!.unmount());
+});
+
+it('reconciles Delete sync failure and never repeats the DELETE mutation', async () => {
+  (deleteWallet as jest.Mock).mockRejectedValue(
+    new ApiError(503, 'saved', 'ALCHEMY_WEBHOOK_SYNC_FAILED'),
+  );
+  (getWallets as jest.Mock).mockResolvedValue([]);
+  const onDeleted = jest.fn();
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  let renderer: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(
+      <WalletEditScreen wallet={wallet} onBack={jest.fn()} onOpenAlertSettings={jest.fn()}
+        onSaved={jest.fn()} onDeleted={onDeleted} />,
+    );
+  });
+  act(() => buttonWithText(renderer!, 'Delete wallet').props.onPress());
+  const buttons = alert.mock.calls[0][2]!;
+  await act(async () => {
+    await buttons[1].onPress!();
+  });
+  expect(deleteWallet).toHaveBeenCalledTimes(1);
+  expect(getWallets).toHaveBeenCalledTimes(1);
+  expect(onDeleted).toHaveBeenCalledWith(wallet.id, expect.stringContaining('saved'), []);
+  alert.mockRestore();
+  act(() => renderer!.unmount());
+});
+
+it('keeps the server wallet when Delete sync reconciliation still lists it', async () => {
+  (deleteWallet as jest.Mock).mockRejectedValue(
+    new ApiError(503, 'saved', 'ALCHEMY_WEBHOOK_SYNC_FAILED'),
+  );
+  const onSaved = jest.fn();
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  let renderer: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(
+      <WalletEditScreen wallet={wallet} onBack={jest.fn()} onOpenAlertSettings={jest.fn()}
+        onSaved={onSaved} onDeleted={jest.fn()} />,
+    );
+  });
+  act(() => buttonWithText(renderer!, 'Delete wallet').props.onPress());
+  await act(async () => {
+    await alert.mock.calls[0][2]![1].onPress!();
+  });
+  expect(onSaved).toHaveBeenCalledWith(wallet, expect.stringContaining('check this wallet'), [wallet]);
+  expect(deleteWallet).toHaveBeenCalledTimes(1);
+  alert.mockRestore();
+  act(() => renderer!.unmount());
+});
+
+it('offers only a read-only refresh after Delete reconciliation fails', async () => {
+  (deleteWallet as jest.Mock).mockRejectedValue(
+    new ApiError(503, 'saved', 'ALCHEMY_WEBHOOK_SYNC_FAILED'),
+  );
+  (getWallets as jest.Mock).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce([]);
+  const onDeleted = jest.fn();
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  let renderer: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(
+      <WalletEditScreen wallet={wallet} onBack={jest.fn()} onOpenAlertSettings={jest.fn()}
+        onSaved={jest.fn()} onDeleted={onDeleted} />,
+    );
+  });
+  act(() => buttonWithText(renderer!, 'Delete wallet').props.onPress());
+  await act(async () => {
+    await alert.mock.calls[0][2]![1].onPress!();
+  });
+  expect(textContent(renderer!.root)).toContain('could not refresh your wallet state');
+  await act(async () => {
+    await buttonWithText(renderer!, 'Refresh wallet state').props.onPress();
+  });
+  expect(deleteWallet).toHaveBeenCalledTimes(1);
+  expect(getWallets).toHaveBeenCalledTimes(2);
+  expect(onDeleted).toHaveBeenCalledWith(wallet.id, expect.any(String), []);
+  alert.mockRestore();
+  act(() => renderer!.unmount());
+});
+
+it('clears a deleted selection when leaving after a failed Delete refetch', async () => {
+  (deleteWallet as jest.Mock).mockRejectedValue(
+    new ApiError(503, 'saved', 'ALCHEMY_WEBHOOK_SYNC_FAILED'),
+  );
+  (getWallets as jest.Mock).mockRejectedValue(new Error('offline'));
+  const onBack = jest.fn();
+  const onDeleted = jest.fn();
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  let renderer: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(
+      <WalletEditScreen wallet={wallet} onBack={onBack} onOpenAlertSettings={jest.fn()}
+        onSaved={jest.fn()} onDeleted={onDeleted} />,
+    );
+  });
+  act(() => buttonWithText(renderer!, 'Delete wallet').props.onPress());
+  await act(async () => {
+    await alert.mock.calls[0][2]![1].onPress!();
+  });
+  act(() => renderer!.root.findByProps({accessibilityLabel: 'Back'}).props.onPress());
+  expect(onBack).not.toHaveBeenCalled();
+  expect(onDeleted).toHaveBeenCalledWith(wallet.id, expect.stringContaining('could not be refreshed'));
+  expect(deleteWallet).toHaveBeenCalledTimes(1);
+  alert.mockRestore();
+  act(() => renderer!.unmount());
+});
+
+it('keeps ordinary Delete errors on the existing error path', async () => {
+  (deleteWallet as jest.Mock).mockRejectedValue(new Error('Delete rejected'));
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  let renderer: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(
+      <WalletEditScreen wallet={wallet} onBack={jest.fn()} onOpenAlertSettings={jest.fn()}
+        onSaved={jest.fn()} onDeleted={jest.fn()} />,
+    );
+  });
+  act(() => buttonWithText(renderer!, 'Delete wallet').props.onPress());
+  await act(async () => {
+    await alert.mock.calls[0][2]![1].onPress!();
+  });
+  expect(textContent(renderer!.root)).toContain('Delete rejected');
+  expect(getWallets).not.toHaveBeenCalled();
   alert.mockRestore();
   act(() => renderer!.unmount());
 });

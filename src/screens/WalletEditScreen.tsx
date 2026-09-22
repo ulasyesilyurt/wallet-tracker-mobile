@@ -12,7 +12,8 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {deleteWallet, updateWallet} from '../api/wallets';
+import {isAlchemyWebhookSyncFailure} from '../api/client';
+import {deleteWallet, getWallets, updateWallet} from '../api/wallets';
 import {
   DestructiveRow,
   FormActionBar,
@@ -33,13 +34,18 @@ import {
   getWalletEnabledChains,
   SUPPORTED_WALLET_CHAIN_OPTIONS,
 } from '../utils/chains';
+import {
+  WALLET_SYNC_NOTICE,
+  WALLET_SYNC_UNCONFIRMED_NOTICE,
+  WALLET_SYNC_UNREFRESHED_NOTICE,
+} from '../utils/walletSync';
 
 type WalletEditScreenProps = {
   wallet: Wallet;
   onBack: () => void;
   onOpenAlertSettings: () => void;
-  onSaved: (wallet: Wallet) => void;
-  onDeleted: (walletId: string) => void;
+  onSaved: (wallet: Wallet, syncWarning?: string, wallets?: Wallet[]) => void;
+  onDeleted: (walletId: string, syncWarning?: string, wallets?: Wallet[]) => void;
 };
 
 const TRACK_TYPE_OPTIONS: Array<{key: WalletTrackType; label: string}> = [
@@ -76,6 +82,8 @@ export function WalletEditScreen({
   const [addressError, setAddressError] = useState<string | null>(null);
   const [chainsError, setChainsError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [pendingReconciliation, setPendingReconciliation] =
+    useState<'save' | 'delete' | null>(null);
 
   const normalizedTrackTypes = useMemo(
     () =>
@@ -112,8 +120,38 @@ export function WalletEditScreen({
     return null;
   }
 
+  async function reconcileWallet(action: 'save' | 'delete') {
+    try {
+      const wallets = await getWallets();
+      const authoritativeWallet = wallets.find(item => item.id === wallet.id);
+
+      if (authoritativeWallet) {
+        onSaved(
+          authoritativeWallet,
+          action === 'delete'
+            ? WALLET_SYNC_UNCONFIRMED_NOTICE
+            : WALLET_SYNC_NOTICE,
+          wallets,
+        );
+      } else {
+        onDeleted(wallet.id, WALLET_SYNC_NOTICE, wallets);
+      }
+    } catch {
+      setSubmitError(
+        'The wallet change was saved, but we could not refresh your wallet state. Refresh wallet state before making another change.',
+      );
+    }
+  }
+
   async function handleSave() {
     if (saving || deleting) return;
+
+    if (pendingReconciliation) {
+      setSaving(true);
+      await reconcileWallet(pendingReconciliation);
+      setSaving(false);
+      return;
+    }
 
     const nextAddressError = validateAddress(address);
     if (nextAddressError) {
@@ -139,16 +177,21 @@ export function WalletEditScreen({
       });
       onSaved(updatedWallet);
     } catch (error) {
-      setSubmitError(
-        error instanceof Error ? error.message : 'Could not update wallet',
-      );
+      if (isAlchemyWebhookSyncFailure(error)) {
+        setPendingReconciliation('save');
+        await reconcileWallet('save');
+      } else {
+        setSubmitError(
+          error instanceof Error ? error.message : 'Could not update wallet',
+        );
+      }
     } finally {
       setSaving(false);
     }
   }
 
   async function handleDeleteConfirmed() {
-    if (saving || deleting) return;
+    if (saving || deleting || pendingReconciliation) return;
     setDeleting(true);
     setSubmitError(null);
 
@@ -156,16 +199,21 @@ export function WalletEditScreen({
       await deleteWallet(wallet.id);
       onDeleted(wallet.id);
     } catch (error) {
-      setSubmitError(
-        error instanceof Error ? error.message : 'Could not delete wallet',
-      );
+      if (isAlchemyWebhookSyncFailure(error)) {
+        setPendingReconciliation('delete');
+        await reconcileWallet('delete');
+      } else {
+        setSubmitError(
+          error instanceof Error ? error.message : 'Could not delete wallet',
+        );
+      }
     } finally {
       setDeleting(false);
     }
   }
 
   function handleDeletePress() {
-    if (saving || deleting) return;
+    if (saving || deleting || pendingReconciliation) return;
     Alert.alert(
       'Delete wallet?',
       'This will stop tracking the wallet and remove it from your followed list.',
@@ -180,7 +228,7 @@ export function WalletEditScreen({
     );
   }
 
-  const disabled = saving || deleting;
+  const disabled = saving || deleting || pendingReconciliation != null;
 
   return (
     <SafeAreaScreen style={styles.screen}>
@@ -206,7 +254,14 @@ export function WalletEditScreen({
           <PushedScreenHeader
             title="Edit wallet"
             walletLabel={wallet.label || 'Wallet'}
-            onBack={onBack}
+            backDisabled={saving || deleting}
+            onBack={() => {
+              if (pendingReconciliation === 'delete') {
+                onDeleted(wallet.id, WALLET_SYNC_UNREFRESHED_NOTICE);
+              } else {
+                onBack();
+              }
+            }}
           />
 
           <View style={{marginTop: layout.sectionGap}}>
@@ -296,9 +351,10 @@ export function WalletEditScreen({
         </ScrollView>
 
         <FormActionBar
-          label="Save changes"
+          label={pendingReconciliation ? 'Refresh wallet state' : 'Save changes'}
           onPress={handleSave}
           busy={saving}
+          busyLabel={pendingReconciliation ? 'Refreshing…' : 'Saving…'}
           disabled={deleting}
           bottomInset={bottomInset}
           error={submitError}

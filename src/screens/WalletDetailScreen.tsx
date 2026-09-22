@@ -6,6 +6,7 @@ import {WalletDetailSummary} from '../components/WalletDetailSummary';
 import {WalletIconButton, WalletMonitoringCard} from '../components/WalletDetailUI';
 import {WalletAlertSettingsScreen} from './WalletAlertSettingsScreen';
 import {SafeAreaScreen} from '../components/SafeAreaScreen';
+import {WalletSyncNotice} from '../components/WalletSyncNotice';
 import {getWalletPerformance, type PortfolioPerformance} from '../api/performance';
 import {getWalletHoldings, type TokenHolding, type WalletHoldings} from '../api/holdings';
 import {getWalletPositions, type WalletPosition, type WalletPositions} from '../api/positions';
@@ -92,6 +93,7 @@ function combineVisiblePortfolioTotals(
 
 type WalletDetailScreenProps = {
   wallet: Wallet;
+  syncNotice?: string | null;
   initialTab?: DetailTab;
   targetEventId?: string | null;
   targetOpenKey?: number;
@@ -102,6 +104,7 @@ type WalletDetailScreenProps = {
 
 export function WalletDetailScreen({
   wallet,
+  syncNotice,
   initialTab,
   targetEventId,
   targetOpenKey,
@@ -486,6 +489,7 @@ export function WalletDetailScreen({
         <Text numberOfLines={1} maxFontSizeMultiplier={1.2} style={styles.headerTitle}>{wallet.label || 'Unnamed wallet'}</Text>
         <WalletIconButton name="ellipsis-horizontal" label="Edit wallet" narrow={layout.narrow} onPress={onEdit} />
       </View>
+      {syncNotice ? <WalletSyncNotice message={syncNotice} /> : null}
       <View style={{paddingTop: layout.listTop}}>
         <WalletDetailSummary wallet={wallet} narrow={layout.narrow} loading={portfolioLoading}
           balance={liveTotalValue} balanceFallback={filteredTotalsLoading ? 'Loading…' : 'Balance unavailable'}

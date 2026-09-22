@@ -41,6 +41,8 @@ export function AppNavigator() {
   const [notificationEventTarget, setNotificationEventTarget] =
     useState<NotificationEventTarget | null>(null);
   const [followingRefreshKey, setFollowingRefreshKey] = useState(0);
+  const [reconciledWallets, setReconciledWallets] = useState<Wallet[] | undefined>();
+  const [walletSyncNotice, setWalletSyncNotice] = useState<string | null>(null);
   const initialNotificationHandledRef = useRef(false);
   const notificationOpenKeyRef = useRef(0);
 
@@ -148,6 +150,8 @@ export function AppNavigator() {
   async function handleLogout() {
     console.log('[auth] logout requested from app navigator');
     setSelectedWallet(null);
+    setReconciledWallets(undefined);
+    setWalletSyncNotice(null);
     setDetailInitialTab(undefined);
     setNotificationEventTarget(null);
     setActiveTab('wallets');
@@ -159,8 +163,10 @@ export function AppNavigator() {
     return (
       <AddWalletScreen
         onBack={() => setRoute('tabs')}
-        onSaved={wallet => {
+        onSaved={(wallet, syncWarning, wallets) => {
           setFollowingRefreshKey(current => current + 1);
+          setReconciledWallets(wallets);
+          setWalletSyncNotice(syncWarning ?? null);
           setSelectedWallet(wallet);
           setDetailInitialTab(undefined);
           setNotificationEventTarget(null);
@@ -177,13 +183,17 @@ export function AppNavigator() {
         wallet={selectedWallet}
         onBack={() => setRoute('detail')}
         onOpenAlertSettings={() => setRoute('alertSettings')}
-        onSaved={updatedWallet => {
+        onSaved={(updatedWallet, syncWarning, wallets) => {
           setSelectedWallet(updatedWallet);
+          setReconciledWallets(wallets);
+          setWalletSyncNotice(syncWarning ?? null);
           setFollowingRefreshKey(current => current + 1);
           setRoute('detail');
         }}
-        onDeleted={() => {
+        onDeleted={(_walletId, syncWarning, wallets) => {
           setSelectedWallet(null);
+          setReconciledWallets(wallets);
+          setWalletSyncNotice(syncWarning ?? null);
           setDetailInitialTab(undefined);
           setNotificationEventTarget(null);
           setFollowingRefreshKey(current => current + 1);
@@ -207,6 +217,7 @@ export function AppNavigator() {
     return (
       <WalletDetailScreen
         wallet={selectedWallet}
+        syncNotice={walletSyncNotice}
         initialTab={detailInitialTab}
         targetEventId={notificationEventTarget?.eventId}
         targetOpenKey={notificationEventTarget?.openKey}
@@ -252,8 +263,14 @@ export function AppNavigator() {
     tabContent = (
       <FollowingScreen
         refreshKey={followingRefreshKey}
-        onAddWallet={() => setRoute('add')}
+        initialWallets={reconciledWallets}
+        syncNotice={walletSyncNotice}
+        onAddWallet={() => {
+          setWalletSyncNotice(null);
+          setRoute('add');
+        }}
         onSelectWallet={wallet => {
+          setWalletSyncNotice(null);
           setSelectedWallet(wallet);
           setDetailInitialTab(undefined);
           setNotificationEventTarget(null);

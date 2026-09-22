@@ -331,6 +331,7 @@ export function FormActionBar({
   label,
   onPress,
   busy,
+  busyLabel = 'Saving…',
   disabled,
   bottomInset,
   error,
@@ -338,6 +339,7 @@ export function FormActionBar({
   label: string;
   onPress: () => void;
   busy: boolean;
+  busyLabel?: string;
   disabled: boolean;
   bottomInset: number;
   error?: string | null;
@@ -377,7 +379,7 @@ export function FormActionBar({
         {busy ? (
           <View style={styles.busyContent}>
             <ActivityIndicator color={colors.primaryCtaText} size="small" />
-            <Text style={styles.primaryButtonText}>Saving…</Text>
+            <Text style={styles.primaryButtonText}>{busyLabel}</Text>
           </View>
         ) : (
           <Text

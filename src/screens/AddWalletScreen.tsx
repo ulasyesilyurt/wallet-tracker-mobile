@@ -11,7 +11,8 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {createWallet} from '../api/wallets';
+import {isAlchemyWebhookSyncFailure} from '../api/client';
+import {createWallet, getWallets} from '../api/wallets';
 import {
   FormActionBar,
   FormField,
@@ -28,6 +29,7 @@ import {
 } from '../theme/walletManagement';
 import type {Wallet, WalletTrackType} from '../types/wallet';
 import {SUPPORTED_WALLET_CHAIN_OPTIONS} from '../utils/chains';
+import {WALLET_SYNC_NOTICE} from '../utils/walletSync';
 
 const DEFAULT_CHAIN_ID = 'ethereum-mainnet';
 const EVM_ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;
@@ -40,7 +42,7 @@ const TRACK_TYPE_OPTIONS: Array<{key: WalletTrackType; label: string}> = [
 
 type AddWalletScreenProps = {
   onBack: () => void;
-  onSaved: (wallet: Wallet) => void;
+  onSaved: (wallet: Wallet, syncWarning?: string, wallets?: Wallet[]) => void;
 };
 
 type TrackTypeState = Record<WalletTrackType, boolean>;
@@ -71,6 +73,7 @@ export function AddWalletScreen({onBack, onSaved}: AddWalletScreenProps) {
     useState<TrackTypeState>(INITIAL_TRACK_TYPE_STATE);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [pendingAddress, setPendingAddress] = useState<string | null>(null);
   const [addressError, setAddressError] = useState<string | null>(null);
   const [chainsError, setChainsError] = useState<string | null>(null);
   const [trackTypesError, setTrackTypesError] = useState<string | null>(null);
@@ -129,8 +132,34 @@ export function AddWalletScreen({onBack, onSaved}: AddWalletScreenProps) {
     return {hasError, normalizedAddress};
   }
 
+  async function reconcileSavedWallet(requestedAddress: string) {
+    try {
+      const wallets = await getWallets();
+      const savedWallet = wallets.find(
+        wallet => wallet.address.toLowerCase() === requestedAddress.toLowerCase(),
+      );
+      if (savedWallet) {
+        onSaved(savedWallet, WALLET_SYNC_NOTICE, wallets);
+        return;
+      }
+      setSubmitError(
+        'The wallet change was saved, but we could not confirm it in your wallet list. Refresh wallet state before making another change.',
+      );
+    } catch {
+      setSubmitError(
+        'The wallet change was saved, but we could not refresh your wallet list. Refresh wallet state before making another change.',
+      );
+    }
+  }
+
   async function handleSave() {
     if (submitting) return;
+    if (pendingAddress) {
+      setSubmitting(true);
+      await reconcileSavedWallet(pendingAddress);
+      setSubmitting(false);
+      return;
+    }
     const validation = validateForm();
     if (validation.hasError) return;
 
@@ -146,9 +175,14 @@ export function AddWalletScreen({onBack, onSaved}: AddWalletScreenProps) {
       });
       onSaved(wallet);
     } catch (error) {
-      setSubmitError(
-        error instanceof Error ? error.message : 'Could not save wallet',
-      );
+      if (isAlchemyWebhookSyncFailure(error)) {
+        setPendingAddress(validation.normalizedAddress);
+        await reconcileSavedWallet(validation.normalizedAddress);
+      } else {
+        setSubmitError(
+          error instanceof Error ? error.message : 'Could not save wallet',
+        );
+      }
     } finally {
       setSubmitting(false);
     }
@@ -178,6 +212,7 @@ export function AddWalletScreen({onBack, onSaved}: AddWalletScreenProps) {
           <PushedScreenHeader
             title="Add wallet"
             onBack={onBack}
+            backDisabled={submitting}
             description="Watch any address. Nothing is ever signed or spent — Wallet Tracker only reads."
           />
 
@@ -254,16 +289,19 @@ export function AddWalletScreen({onBack, onSaved}: AddWalletScreenProps) {
 
           {submitError ? (
             <View style={styles.submitError}>
-              <Text style={styles.submitErrorTitle}>Could not save wallet</Text>
+              <Text style={styles.submitErrorTitle}>
+                {pendingAddress ? 'Wallet state needs a refresh' : 'Could not save wallet'}
+              </Text>
               <Text style={styles.submitErrorBody}>{submitError}</Text>
             </View>
           ) : null}
         </ScrollView>
 
         <FormActionBar
-          label="Save wallet"
+          label={pendingAddress ? 'Refresh wallet state' : 'Save wallet'}
           onPress={handleSave}
           busy={submitting}
+          busyLabel={pendingAddress ? 'Refreshing…' : 'Saving…'}
           disabled={false}
           bottomInset={bottomInset}
         />

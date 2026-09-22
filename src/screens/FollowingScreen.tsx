@@ -17,6 +17,7 @@ import { getWallets } from '../api/wallets';
 import { WalletCard } from '../components/WalletCard';
 import { WalletsPortfolioCard } from '../components/WalletsPortfolioCard';
 import { WalletsLoadingRows } from '../components/WalletsLoadingRows';
+import { WalletSyncNotice } from '../components/WalletSyncNotice';
 import { walletsColors as colors, getWalletsLayout } from '../theme/wallets';
 import type { Wallet } from '../types/wallet';
 import { logPortfolioBalanceDecision } from '../utils/performance';
@@ -24,6 +25,8 @@ import { useTabBarInset } from '../navigation/TabBarInsetContext';
 
 type FollowingScreenProps = {
   refreshKey?: number;
+  initialWallets?: Wallet[];
+  syncNotice?: string | null;
   onAddWallet: () => void;
   onSelectWallet: (wallet: Wallet) => void;
 };
@@ -32,14 +35,16 @@ const WALLET_SUMMARY_FETCH_CONCURRENCY = 3;
 
 export function FollowingScreen({
   refreshKey = 0,
+  initialWallets,
+  syncNotice,
   onAddWallet,
   onSelectWallet,
 }: FollowingScreenProps) {
   const { width } = useWindowDimensions();
   const layout = getWalletsLayout(width);
   const tabBarInset = useTabBarInset();
-  const [wallets, setWallets] = useState<Wallet[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [wallets, setWallets] = useState<Wallet[]>(initialWallets ?? []);
+  const [loading, setLoading] = useState(initialWallets == null);
   const [refreshing, setRefreshing] = useState(false);
   const [summariesLoading, setSummariesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -210,8 +215,8 @@ export function FollowingScreen({
   }
 
   useEffect(() => {
-    void loadWallets();
-  }, [refreshKey]);
+    void loadWallets(initialWallets != null);
+  }, [refreshKey, initialWallets]);
 
   const systemState =
     loading || refreshing || summariesLoading
@@ -255,12 +260,14 @@ export function FollowingScreen({
         </Pressable>
       </View>
 
+      {syncNotice ? <WalletSyncNotice message={syncNotice} /> : null}
+
       {loading ? (
         <View style={styles.loadingContent}>
           <WalletsPortfolioCard width={width} value={null} loading />
           <WalletsLoadingRows width={width} />
         </View>
-      ) : error && wallets.length === 0 ? (
+      ) : error && wallets.length === 0 && initialWallets == null ? (
         <WalletsState
           title="Could not load wallets"
           body={error}
