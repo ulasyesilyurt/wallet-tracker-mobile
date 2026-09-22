@@ -145,7 +145,10 @@ beforeEach(() => {
   jest.spyOn(console, 'log').mockImplementation(() => {});
   jest.mocked(getWalletHoldings).mockResolvedValue(holdings);
   jest.mocked(getWalletPositions).mockResolvedValue(positions);
-  jest.mocked(getWalletEvents).mockResolvedValue([event]);
+  jest.mocked(getWalletEvents).mockResolvedValue({
+    items: [event],
+    pagination: {limit: 50, offset: 0, hasMore: false},
+  });
   jest.mocked(getWalletPortfolioSummary).mockResolvedValue({
     walletId: wallet.id,
     chainId: wallet.chainId,
@@ -350,7 +353,10 @@ it('keeps the summary, tabs, and filter usable when History fails or has no rows
         .findAllByType(Text)
         .some(text => text.props.children === 'Try again'),
     )!;
-  jest.mocked(getWalletEvents).mockResolvedValueOnce([]);
+  jest.mocked(getWalletEvents).mockResolvedValueOnce({
+    items: [],
+    pagination: {limit: 50, offset: 0, hasMore: false},
+  });
   await act(async () => {
     await retry.props.onPress();
   });

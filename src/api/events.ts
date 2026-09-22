@@ -80,16 +80,53 @@ export function isTransactionActivityItem(
   return item.itemType === 'transaction';
 }
 
-type WalletEventsResponse = {
-  data: WalletHistoryItem[];
+export type WalletEventsPagination = {
+  limit: number;
+  offset: number;
+  hasMore: boolean;
 };
 
-export async function getWalletEvents(walletId: string): Promise<WalletHistoryItem[]> {
-  const response = await apiRequest<WalletEventsResponse>(
-    `/wallets/${walletId}/events?groupTransactions=true`,
+type WalletEventsApiResponse = {
+  data: WalletHistoryItem[];
+  pagination?: Partial<WalletEventsPagination>;
+};
+
+export type WalletEventsPage = {
+  items: WalletHistoryItem[];
+  pagination: WalletEventsPagination;
+};
+
+export async function getWalletEvents(
+  walletId: string,
+  limit = 50,
+  offset = 0,
+): Promise<WalletEventsPage> {
+  const searchParams = new URLSearchParams({
+    groupTransactions: 'true',
+    limit: String(limit),
+    offset: String(offset),
+  });
+  const response = await apiRequest<WalletEventsApiResponse>(
+    `/wallets/${walletId}/events?${searchParams.toString()}`,
   );
 
-  return [...response.data].sort((left, right) => {
-    return new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime();
-  });
+  return {
+    items: [...response.data].sort((left, right) => {
+      return new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime();
+    }),
+    pagination: {
+      limit:
+        typeof response.pagination?.limit === 'number'
+          ? response.pagination.limit
+          : limit,
+      offset:
+        typeof response.pagination?.offset === 'number'
+          ? response.pagination.offset
+          : offset,
+      hasMore:
+        typeof response.pagination?.hasMore === 'boolean'
+          ? response.pagination.hasMore
+          : false,
+    },
+  };
 }
