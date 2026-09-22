@@ -1,9 +1,17 @@
+import groovy.json.JsonOutput
+
 apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 apply plugin: "com.google.gms.google-services"
 apply plugin: "com.google.firebase.crashlytics"
 apply from: "../../node_modules/react-native-vector-icons/fonts.gradle"
+
+def configuredApiOrigin = project.hasProperty("API_BASE_URL")
+    ? project.property("API_BASE_URL")?.toString()
+    : System.getenv("API_BASE_URL")
+def debugApiOrigin = configuredApiOrigin == null ? "http://10.0.2.2:3000" : configuredApiOrigin
+def releaseApiOrigin = configuredApiOrigin == null ? "" : configuredApiOrigin
 
 /**
  * This is the configuration block to customize your React Native Android app.
@@ -88,6 +96,9 @@ android {
         versionCode 1
         versionName "1.0"
     }
+    buildFeatures {
+        buildConfig true
+    }
     signingConfigs {
         debug {
             storeFile file('debug.keystore')
@@ -99,15 +110,28 @@ android {
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
+            buildConfigField "String", "API_ORIGIN", JsonOutput.toJson(debugApiOrigin)
+            manifestPlaceholders = [usesCleartextTraffic: "true"]
         }
         release {
             // Caution! In production, you need to generate your own keystore file.
             // see https://reactnative.dev/docs/signed-apk-android.
             signingConfig signingConfigs.debug
+            buildConfigField "String", "API_ORIGIN", JsonOutput.toJson(releaseApiOrigin)
+            manifestPlaceholders = [usesCleartextTraffic: "false"]
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
     }
+}
+
+tasks.register("validateReleaseApiUrl", Exec) {
+    environment "API_BASE_URL", releaseApiOrigin
+    commandLine "node", file("../../scripts/check-api-url.js"), "release"
+}
+
+tasks.matching { it.name == "preReleaseBuild" || it.name == "generateReleaseBuildConfig" }.configureEach {
+    dependsOn tasks.named("validateReleaseApiUrl")
 }
 
 dependencies {

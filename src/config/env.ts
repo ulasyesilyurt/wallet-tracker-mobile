@@ -1,3 +1,17 @@
+import {NativeModules} from 'react-native';
+import {resolveApiBaseUrl} from './apiUrl';
+
+type NativeApiConfig = {
+  apiOrigin?: unknown;
+  isRelease?: unknown;
+};
+
 export const env = {
-  apiBaseUrl: 'http://10.0.2.2:3000/api/v1',
+  get apiBaseUrl() {
+    const nativeApiConfig = NativeModules.ApiConfig as NativeApiConfig | undefined;
+    return resolveApiBaseUrl(
+      nativeApiConfig?.apiOrigin,
+      nativeApiConfig?.isRelease,
+    );
+  },
 } as const;

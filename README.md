@@ -118,29 +118,65 @@ npm run ios
 
 ## Environment / API Configuration
 
-The app expects a backend API URL to be configured in the frontend API layer.
+The app reads `API_BASE_URL` from its native build configuration. Supply the
+backend origin (or an origin already ending in `/api/v1`); the app normalizes
+trailing slashes and uses `/api/v1` exactly once. No `.env` file or JS source
+edit is needed. The shared API client is the only place requests are built.
 
-Check the API files under:
+### Local Android emulator
 
-```txt
-src/api/
+Android Debug defaults to `http://10.0.2.2:3000`, which reaches a backend on
+the host computer from the standard Android emulator. Start the backend on port
+3000, then run `npm run android`. For a different development server, override
+the build value, for example:
+
+```bash
+cd android
+./gradlew :app:installDebug -PAPI_BASE_URL=http://10.0.2.2:3001
 ```
 
-Update the backend base URL according to your local development setup.
+### Local iOS simulator
 
-Example local backend:
+iOS Debug defaults to `http://localhost:3000`. Start the backend on the Mac,
+then run `npm run ios` or launch the Debug scheme in Xcode. To use another
+development URL, set the target's `API_BASE_URL` Debug build setting in Xcode,
+or pass it to `xcodebuild` on the command line.
 
-```txt
-http://localhost:3000
+### Android release / internal test
+
+Set `API_BASE_URL` to the deployed HTTPS backend origin for every Release
+build. This is an example only; replace the placeholder with the actual
+deployed endpoint:
+
+```bash
+cd android
+./gradlew :app:assembleRelease -PAPI_BASE_URL=https://api.example.com
 ```
 
-For Android emulator, you may need to use:
+`API_BASE_URL` can also be provided as an environment variable. Release builds
+fail if it is missing, malformed, non-HTTPS, or points at a local/emulator or
+temporary tunnel host. Android Release also disables cleartext traffic. The
+current Android Release signing configuration still uses the debug keystore;
+configure proper signing separately before distribution.
 
-```txt
-http://10.0.2.2:3000
+### iOS release / archive
+
+Set the app target's `API_BASE_URL` Release build setting in Xcode to the real
+deployed HTTPS origin, or pass it to an archive command (after `pod install`):
+
+```bash
+cd ios
+xcodebuild -workspace WalletTrackerApp.xcworkspace -scheme WalletTrackerApp \
+  -configuration Release -sdk iphoneos \
+  -archivePath build/WalletTrackerApp.xcarchive \
+  API_BASE_URL=https://api.example.com archive
 ```
 
-instead of `localhost`.
+The iOS Release build setting is intentionally empty in source control. The
+archive's bundle phase validates it and fails if it is missing or unsafe.
+`https://api.example.com` is a placeholder, not a production endpoint. Both
+Android and iOS release builds must point to the deployed HTTPS backend;
+there is no localhost, emulator, or ngrok fallback.
 
 ## Main Screens
 

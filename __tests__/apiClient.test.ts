@@ -1,7 +1,12 @@
 import {ApiError, apiRequest, isAlchemyWebhookSyncFailure} from '../src/api/client';
 import {setSessionAccessToken} from '../src/auth/session';
+import {NativeModules} from 'react-native';
 
 const originalFetch = globalThis.fetch;
+
+beforeEach(() => {
+  NativeModules.ApiConfig = {apiOrigin: 'https://api.example.com', isRelease: true};
+});
 
 function mockResponse(status: number, body: unknown) {
   globalThis.fetch = jest.fn().mockResolvedValue({
@@ -14,6 +19,7 @@ function mockResponse(status: number, body: unknown) {
 afterEach(() => {
   globalThis.fetch = originalFetch;
   setSessionAccessToken(null);
+  delete NativeModules.ApiConfig;
 });
 
 it('preserves safe structured backend error fields and message-only callers', async () => {
@@ -44,7 +50,7 @@ it('preserves safe structured backend error fields and message-only callers', as
   expect(isAlchemyWebhookSyncFailure(received)).toBe(true);
   expect(JSON.stringify(received)).not.toContain('never expose this');
   expect(globalThis.fetch).toHaveBeenCalledWith(
-    expect.any(String),
+    'https://api.example.com/api/v1/wallets',
     expect.objectContaining({
       headers: expect.objectContaining({Authorization: 'Bearer session-token'}),
     }),
