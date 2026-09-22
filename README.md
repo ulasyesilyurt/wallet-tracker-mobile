@@ -142,22 +142,61 @@ then run `npm run ios` or launch the Debug scheme in Xcode. To use another
 development URL, set the target's `API_BASE_URL` Debug build setting in Xcode,
 or pass it to `xcodebuild` on the command line.
 
-### Android release / internal test
+### Android release / Internal or Closed Testing
 
-Set `API_BASE_URL` to the deployed HTTPS backend origin for every Release
-build. This is an example only; replace the placeholder with the actual
-deployed endpoint:
+Android Release requires a dedicated private upload key and a deployed HTTPS
+backend. The checked-in `debug.keystore` is used for Debug only and is rejected
+for Release. Release fails if any upload signing value is missing, the keystore
+file is absent, or the debug keystore is supplied.
+
+Generate a new upload key locally only when you are ready to manage and back it
+up. This command prompts for passwords; replace the identity and alias
+placeholders, and do not put real passwords on the command line:
 
 ```bash
-cd android
-./gradlew :app:assembleRelease -PAPI_BASE_URL=https://api.example.com
+keytool -genkeypair -v \
+  -keystore android/app/upload-keystore.jks \
+  -alias YOUR_UPLOAD_ALIAS \
+  -keyalg RSA -keysize 4096 -validity 10000 \
+  -dname "CN=YOUR_NAME, OU=YOUR_TEAM, O=YOUR_ORG, L=YOUR_CITY, ST=YOUR_STATE, C=YOUR_COUNTRY_CODE"
 ```
 
-`API_BASE_URL` can also be provided as an environment variable. Release builds
-fail if it is missing, malformed, non-HTTPS, or points at a local/emulator or
-temporary tunnel host. Android Release also disables cleartext traffic. The
-current Android Release signing configuration still uses the debug keystore;
-configure proper signing separately before distribution.
+`android/app/upload-keystore.jks` is gitignored. Alternatively, keep the key
+outside the repository and use its absolute path. In your personal
+`~/.gradle/gradle.properties` (never the repository's `android/gradle.properties`),
+set these values, replacing every placeholder:
+
+```properties
+MYAPP_UPLOAD_STORE_FILE=upload-keystore.jks
+MYAPP_UPLOAD_KEY_ALIAS=YOUR_UPLOAD_ALIAS
+MYAPP_UPLOAD_STORE_PASSWORD=YOUR_STORE_PASSWORD
+MYAPP_UPLOAD_KEY_PASSWORD=YOUR_KEY_PASSWORD
+```
+
+The relative store path above resolves from `android/app`. The same four names
+can instead be provided as environment variables or CI secrets; Gradle project
+properties take precedence. Keep the properties file private and back up the
+key and passwords securely outside Git. Do not use the debug key as an upload
+key.
+
+From `android/`, build the AAB for Play Internal/Closed Testing with the real
+deployed API URL (the URL below is only a placeholder):
+
+```bash
+./gradlew bundleRelease -PAPI_BASE_URL=https://api.example.com
+```
+
+The resulting bundle is `android/app/build/outputs/bundle/release/app-release.aab`.
+`API_BASE_URL` may also come from the environment. Release fails if it is
+missing, malformed, non-HTTPS, or points at a local/emulator or temporary
+tunnel host; cleartext traffic is disabled.
+
+With Google Play App Signing, this local private **upload key** signs the AAB
+you submit. Google Play manages the separate **app signing key** used for
+distributed installs. Preserve the upload key and its passwords in a secure
+backup; do not commit, email, or upload the private key itself. Enroll/configure
+Play App Signing and register the upload certificate in Play Console before
+submitting a test bundle.
 
 ### iOS release / archive
 

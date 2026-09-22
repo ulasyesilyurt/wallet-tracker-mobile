@@ -12,6 +12,15 @@ def configuredApiOrigin = project.hasProperty("API_BASE_URL")
     : System.getenv("API_BASE_URL")
 def debugApiOrigin = configuredApiOrigin == null ? "http://10.0.2.2:3000" : configuredApiOrigin
 def releaseApiOrigin = configuredApiOrigin == null ? "" : configuredApiOrigin
+def uploadSigningValue = { name ->
+    def value = project.hasProperty(name) ? project.property(name) : System.getenv(name)
+    return value == null ? "" : value.toString()
+}
+def uploadStorePath = uploadSigningValue("MYAPP_UPLOAD_STORE_FILE")
+def uploadKeyAlias = uploadSigningValue("MYAPP_UPLOAD_KEY_ALIAS")
+def uploadStorePassword = uploadSigningValue("MYAPP_UPLOAD_STORE_PASSWORD")
+def uploadKeyPassword = uploadSigningValue("MYAPP_UPLOAD_KEY_PASSWORD")
+def uploadStoreFile = uploadStorePath.trim() ? file(uploadStorePath) : null
 
 /**
  * This is the configuration block to customize your React Native Android app.
@@ -106,6 +115,12 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        upload {
+            if (uploadStoreFile != null) storeFile uploadStoreFile
+            if (uploadStorePassword) storePassword uploadStorePassword
+            if (uploadKeyAlias) keyAlias uploadKeyAlias
+            if (uploadKeyPassword) keyPassword uploadKeyPassword
+        }
     }
     buildTypes {
         debug {
@@ -114,15 +129,36 @@ android {
             manifestPlaceholders = [usesCleartextTraffic: "true"]
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.upload
             buildConfigField "String", "API_ORIGIN", JsonOutput.toJson(releaseApiOrigin)
             manifestPlaceholders = [usesCleartextTraffic: "false"]
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
     }
+}
+
+tasks.register("validateReleaseSigning") {
+    doLast {
+        def missing = []
+        if (!uploadStorePath.trim()) missing << "MYAPP_UPLOAD_STORE_FILE"
+        if (!uploadKeyAlias.trim()) missing << "MYAPP_UPLOAD_KEY_ALIAS"
+        if (!uploadStorePassword) missing << "MYAPP_UPLOAD_STORE_PASSWORD"
+        if (!uploadKeyPassword) missing << "MYAPP_UPLOAD_KEY_PASSWORD"
+        if (!missing.isEmpty()) {
+            throw new GradleException("Android Release signing is required. Set: ${missing.join(', ')}")
+        }
+        if (!uploadStoreFile.isFile()) {
+            throw new GradleException("Android Release upload keystore file does not exist.")
+        }
+        if (uploadStoreFile.canonicalFile == file("debug.keystore").canonicalFile) {
+            throw new GradleException("Android Release must not use debug.keystore.")
+        }
+    }
+}
+
+tasks.matching { it.name == "preReleaseBuild" || it.name == "validateSigningRelease" || it.name == "bundleRelease" || it.name == "assembleRelease" }.configureEach {
+    dependsOn tasks.named("validateReleaseSigning")
 }
 
 tasks.register("validateReleaseApiUrl", Exec) {

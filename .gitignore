@@ -33,6 +33,10 @@ local.properties
 .cxx/
 *.keystore
 !debug.keystore
+*.jks
+*.p12
+*.pfx
+**/upload-keystore*
 .kotlin/
 
 # node.js
