@@ -102,11 +102,14 @@ npm run android
 
 ### 4. Run on iOS
 
-Install CocoaPods dependencies first:
+On a clean Mac, install a compatible Xcode (including command-line tools),
+Node dependencies, and the CocoaPods gems declared in `Gemfile`. Supply the
+matching Firebase iOS plist as described below, then install Pods:
 
 ```bash
+bundle install
 cd ios
-pod install
+bundle exec pod install
 cd ..
 ```
 
@@ -200,22 +203,81 @@ submitting a test bundle.
 
 ### iOS release / archive
 
-Set the app target's `API_BASE_URL` Release build setting in Xcode to the real
-deployed HTTPS origin, or pass it to an archive command (after `pod install`):
+The iOS target uses automatic signing, but no real Apple Team ID or Release
+bundle identifier is committed. In Xcode, open
+`ios/WalletTrackerApp.xcworkspace`, select the `WalletTrackerApp` target, and:
+
+1. In **Signing & Capabilities**, select your Apple Developer team, leave
+   **Automatically manage signing** enabled, and set **Release Bundle
+   Identifier** to the final identifier registered in the Apple Developer
+   account. Debug retains the React Native example ID only for local setup;
+   change it too if you need on-device Debug push. Do not archive with it.
+2. Set the target's Release `API_BASE_URL` build setting to the deployed HTTPS
+   backend origin. It is intentionally empty in source control and validated
+   during the Release bundle phase.
+3. Add `ios/WalletTrackerApp/GoogleService-Info.plist` from the Firebase iOS app
+   registered with that exact bundle identifier. The file is already referenced
+   by the Xcode target and copied into the app. It is gitignored, so copy it
+   locally or provision it at that path from a CI secret before `xcodebuild`.
+   Debug needs a plist matching its own Debug bundle ID as well; use a separate
+   Firebase iOS app if the identifiers differ. The plist is client configuration,
+   not a server credential, but manage its distribution deliberately.
+4. Confirm the Apple App ID has Push Notifications enabled and Xcode provisions
+   a profile with that capability. The target includes a templated
+   `aps-environment` entitlement (`development` for Debug, `production` for
+   Release); Xcode and the selected provisioning profile determine the final
+   signed entitlement. Inspect the signed archive rather than assuming it.
+
+The pre-build validation fails if the Release bundle ID is missing or still an
+example, the Release team is missing, the plist is absent/malformed, or its
+`BUNDLE_ID` differs from the target. It never supplies a fallback identity or
+Firebase configuration. Xcode signing still requires a valid distribution
+certificate/profile on the machine or CI.
+
+For FCM delivery, create/register the matching iOS app in Firebase, then
+create an APNs authentication key (or certificate) in the Apple Developer
+account and upload it under Firebase Console → Project settings → Cloud
+Messaging for that iOS app. Keep the APNs private key outside Git. Test
+permission grant/denial, token registration, foreground/background delivery,
+and notification navigation on a physical device. The app requests iOS
+notification authorization at startup; it registers the authenticated FCM
+token with the backend only after authorization and APNs registration succeed.
+If denied, the user must re-enable notifications in iOS Settings.
+
+`AppIcon.appiconset` is referenced but contains no image files. Before a
+TestFlight upload, supply final artwork and populate its declared iPhone
+20/29/40/60-point @2x/@3x slots and 1024×1024 App Store marketing slot in
+Xcode. Verify the icon in an archive; this repository does not generate art.
+
+Current `MARKETING_VERSION` is `1.0` and `CURRENT_PROJECT_VERSION` is `1` in
+the target's Debug/Release build settings. Keep the marketing version aligned
+with the intended release and increment the build number for each new
+App Store Connect upload; neither value was bumped by this preparation.
+
+An archive command, after `bundle exec pod install` and local/CI signing setup,
+is (all values below are placeholders):
 
 ```bash
 cd ios
 xcodebuild -workspace WalletTrackerApp.xcworkspace -scheme WalletTrackerApp \
-  -configuration Release -sdk iphoneos \
+  -configuration Release -destination 'generic/platform=iOS' \
   -archivePath build/WalletTrackerApp.xcarchive \
+  PRODUCT_BUNDLE_IDENTIFIER=YOUR_REGISTERED_BUNDLE_ID \
+  DEVELOPMENT_TEAM=YOUR_APPLE_TEAM_ID \
   API_BASE_URL=https://api.example.com archive
 ```
 
-The iOS Release build setting is intentionally empty in source control. The
-archive's bundle phase validates it and fails if it is missing or unsafe.
-`https://api.example.com` is a placeholder, not a production endpoint. Both
-Android and iOS release builds must point to the deployed HTTPS backend;
-there is no localhost, emulator, or ngrok fallback.
+`https://api.example.com` is not a production endpoint. Before uploading,
+inspect the `.xcarchive` bundle ID, embedded Firebase plist, signed
+`aps-environment`, API URL, icon, and version/build metadata. This preparation
+does not create or upload an archive. Both Android and iOS release builds must
+point to the deployed HTTPS backend; there is no localhost, emulator, or ngrok
+fallback.
+
+`ios/Podfile.lock` and `Gemfile.lock` are currently absent. For repeatable CI
+archives, generate and commit these lockfiles once a trusted clean-machine
+`bundle install` / `bundle exec pod install` succeeds; do not commit `Pods/`
+or local signing/Firebase files.
 
 ## Main Screens
 

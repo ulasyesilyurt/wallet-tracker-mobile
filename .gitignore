@@ -36,6 +36,9 @@ local.properties
 *.jks
 *.p12
 *.pfx
+*.p8
+*.mobileprovision
+*.provisionprofile
 **/upload-keystore*
 .kotlin/
 
@@ -78,6 +81,7 @@ yarn-error.log
 !.yarn/sdks
 !.yarn/versions
 android/app/google-services.json
+ios/WalletTrackerApp/GoogleService-Info.plist
 
 # Environment
 .env

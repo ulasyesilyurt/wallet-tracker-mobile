@@ -8,11 +8,11 @@ function getCurrentPlatform(): 'ios' | 'android' {
   return Platform.OS === 'ios' ? 'ios' : 'android';
 }
 
-export function PushRegistrationManager() {
+export function PushRegistrationManager({enabled = true}: {enabled?: boolean}) {
   const {user} = useAuth();
 
   useEffect(() => {
-    if (!user) {
+    if (!user || !enabled) {
       return;
     }
 
@@ -48,14 +48,14 @@ export function PushRegistrationManager() {
       }
     }
 
-    void registerCurrentToken();
+    registerCurrentToken();
 
     const unsubscribe = messaging().onTokenRefresh(token => {
       console.log('[notifications] token refresh acquired for authenticated user', {
         acquired: true,
       });
 
-      void registerDeviceTokenRequest({
+      registerDeviceTokenRequest({
         token,
         platform: getCurrentPlatform(),
       })
@@ -76,7 +76,7 @@ export function PushRegistrationManager() {
       cancelled = true;
       unsubscribe();
     };
-  }, [user]);
+  }, [user, enabled]);
 
   return null;
 }

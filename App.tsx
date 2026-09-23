@@ -1,4 +1,4 @@
-import React, {useEffect} from 'react';
+import React, {useEffect, useState} from 'react';
 import {PermissionsAndroid, Platform, SafeAreaView, StatusBar, StyleSheet} from 'react-native';
 import messaging from '@react-native-firebase/messaging';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
@@ -22,7 +22,40 @@ async function requestAndroidNotificationPermission() {
 }
 
 export default function App() {
+  const [iosPushReady, setIosPushReady] = useState(Platform.OS !== 'ios');
+
   useEffect(() => {
+    if (Platform.OS === 'ios') {
+      let mounted = true;
+
+      async function prepareIosNotifications() {
+        try {
+          const status = await messaging().requestPermission();
+          const authorized =
+            status === messaging.AuthorizationStatus.AUTHORIZED ||
+            status === messaging.AuthorizationStatus.PROVISIONAL;
+
+          if (!authorized) {
+            console.log('[notifications] iOS notification permission not granted');
+            return;
+          }
+
+          await messaging().registerDeviceForRemoteMessages();
+          if (mounted) {
+            setIosPushReady(true);
+          }
+          console.log('[notifications] device registered for remote messages');
+        } catch {
+          console.log('[notifications] iOS notification setup failed');
+        }
+      }
+
+      prepareIosNotifications();
+      return () => {
+        mounted = false;
+      };
+    }
+
     messaging()
       .registerDeviceForRemoteMessages()
       .then(() => {
@@ -40,7 +73,7 @@ export default function App() {
       <SafeAreaView style={styles.container}>
         <StatusBar barStyle="light-content" backgroundColor={colors.background} />
         <AuthProvider>
-          <PushRegistrationManager />
+          <PushRegistrationManager enabled={iosPushReady} />
           <RootNavigator />
         </AuthProvider>
       </SafeAreaView>
