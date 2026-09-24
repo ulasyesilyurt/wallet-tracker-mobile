@@ -87,3 +87,6 @@ ios/WalletTrackerApp/GoogleService-Info.plist
 .env
 .env.*
 !.env.example
+
+# Generated Xcode workspace
+**/*.xcworkspace/
