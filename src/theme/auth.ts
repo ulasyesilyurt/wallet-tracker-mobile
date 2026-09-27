@@ -1,6 +1,8 @@
+import {walletsColors} from './wallets';
+
 // Auth palette from the approved ChainBell design. Other app screens retain their theme.
 export const authColors = {
-  background: '#070A12',
+  background: walletsColors.background,
   surface: '#0D1220',
   text: '#F2F5FA',
   textSecondary: '#B4BCCB',

@@ -5,6 +5,9 @@ import messaging from '@react-native-firebase/messaging';
 import App from '../App';
 import {PushRegistrationManager} from '../src/notifications/PushRegistrationManager';
 import {useAuth} from '../src/auth/AuthContext';
+import {colors} from '../src/theme/colors';
+import {authColors} from '../src/theme/auth';
+import {walletsColors} from '../src/theme/wallets';
 
 jest.mock('@react-native-firebase/messaging', () => {
   const client = {
@@ -53,13 +56,15 @@ beforeEach(() => {
 });
 
 it('matches the auth safe-area background without changing signed-in chrome', async () => {
+  expect(walletsColors.background).toBe('#08090B');
+  expect(authColors.background).toBe(walletsColors.background);
   let renderer = await renderApp();
-  expect(renderer.root.findByType(StatusBar).props.backgroundColor).toBe('#070A12');
+  expect(renderer.root.findByType(StatusBar).props.backgroundColor).toBe(walletsColors.background);
   act(() => renderer.unmount());
 
   auth.mockReturnValue({user: {id: 'user-1'}} as ReturnType<typeof useAuth>);
   renderer = await renderApp();
-  expect(renderer.root.findByType(StatusBar).props.backgroundColor).toBe('#0A0D12');
+  expect(renderer.root.findByType(StatusBar).props.backgroundColor).toBe(colors.background);
   act(() => renderer.unmount());
 });
 
