@@ -1,9 +1,10 @@
 import React from 'react';
-import {PermissionsAndroid, Platform} from 'react-native';
+import {PermissionsAndroid, Platform, StatusBar} from 'react-native';
 import TestRenderer, {act} from 'react-test-renderer';
 import messaging from '@react-native-firebase/messaging';
 import App from '../App';
 import {PushRegistrationManager} from '../src/notifications/PushRegistrationManager';
+import {useAuth} from '../src/auth/AuthContext';
 
 jest.mock('@react-native-firebase/messaging', () => {
   const client = {
@@ -20,6 +21,7 @@ jest.mock('react-native-safe-area-context', () => ({
 }));
 jest.mock('../src/auth/AuthContext', () => ({
   AuthProvider: ({children}: {children: React.ReactNode}) => children,
+  useAuth: jest.fn(),
 }));
 jest.mock('../src/navigation/RootNavigator', () => ({RootNavigator: () => null}));
 jest.mock('../src/notifications/PushRegistrationManager', () => ({
@@ -30,6 +32,7 @@ const client = messaging();
 const requestPermission = jest.mocked(client.requestPermission);
 const registerForRemoteMessages = jest.mocked(client.registerDeviceForRemoteMessages);
 const pushManager = jest.mocked(PushRegistrationManager);
+const auth = jest.mocked(useAuth);
 const originalOS = Platform.OS;
 
 async function renderApp() {
@@ -44,8 +47,20 @@ async function renderApp() {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  auth.mockReturnValue({user: null} as ReturnType<typeof useAuth>);
   registerForRemoteMessages.mockResolvedValue(undefined);
   jest.spyOn(PermissionsAndroid, 'request').mockResolvedValue(PermissionsAndroid.RESULTS.GRANTED);
+});
+
+it('matches the auth safe-area background without changing signed-in chrome', async () => {
+  let renderer = await renderApp();
+  expect(renderer.root.findByType(StatusBar).props.backgroundColor).toBe('#070A12');
+  act(() => renderer.unmount());
+
+  auth.mockReturnValue({user: {id: 'user-1'}} as ReturnType<typeof useAuth>);
+  renderer = await renderApp();
+  expect(renderer.root.findByType(StatusBar).props.backgroundColor).toBe('#0A0D12');
+  act(() => renderer.unmount());
 });
 
 afterEach(() => {

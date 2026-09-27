@@ -1,16 +1,16 @@
-import React, {useState} from 'react';
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import React, {useRef, useState} from 'react';
+import {Pressable, StyleSheet, Text, TextInput, View} from 'react-native';
 import {useAuth} from '../auth/AuthContext';
-import {colors} from '../theme/colors';
+import {hasAuthFieldErrors, validateLogin, type AuthFieldErrors} from '../auth/validation';
+import {
+  AuthFormLayout,
+  AuthHeader,
+  AuthPasswordToggle,
+  AuthPrimaryButton,
+  AuthRequestError,
+  AuthTextField,
+} from '../components/AuthUI';
+import {authColors} from '../theme/auth';
 
 type LoginScreenProps = {
   onShowRegister: () => void;
@@ -20,140 +20,135 @@ export function LoginScreen({onShowRegister}: LoginScreenProps) {
   const {login} = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<AuthFieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const submittingRef = useRef(false);
+  const passwordInputRef = useRef<TextInput>(null);
 
   async function handleLogin() {
+    if (submittingRef.current) return;
+
+    const nextErrors = validateLogin(email, password);
+    setFieldErrors(nextErrors);
+    if (hasAuthFieldErrors(nextErrors)) return;
+
+    submittingRef.current = true;
     setSubmitting(true);
     setError(null);
-
     try {
-      await login({
-        email: email.trim(),
-        password,
-      });
+      await login({email: email.trim(), password});
     } catch (loginError) {
       setError(loginError instanceof Error ? loginError.message : 'Could not sign in');
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   }
 
+  function updateEmail(value: string) {
+    setEmail(value);
+    setFieldErrors(current => ({...current, email: undefined}));
+    setError(null);
+  }
+
+  function updatePassword(value: string) {
+    setPassword(value);
+    setFieldErrors(current => ({...current, password: undefined}));
+    setError(null);
+  }
+
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={styles.screen}>
-      <View style={styles.card}>
-        <Text style={styles.title}>Sign in</Text>
-        <Text style={styles.subtitle}>Access the wallets and alerts you already follow.</Text>
+    <AuthFormLayout>
+      <AuthHeader title="Sign in" subtitle="Welcome back to ChainBell." />
 
-        <TextInput
-          style={styles.input}
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="email-address"
-          placeholder="Email"
-          placeholderTextColor={colors.textTertiary}
+      <View style={styles.form}>
+        <AuthTextField
+          label="Email"
+          error={fieldErrors.email}
           value={email}
-          onChangeText={setEmail}
-        />
-        <TextInput
-          style={styles.input}
+          onChangeText={updateEmail}
+          onBlur={() => setFieldErrors(current => ({
+            ...current,
+            email: validateLogin(email, password).email,
+          }))}
           autoCapitalize="none"
           autoCorrect={false}
-          secureTextEntry
-          placeholder="Password"
-          placeholderTextColor={colors.textTertiary}
+          autoComplete="email"
+          keyboardType="email-address"
+          textContentType="emailAddress"
+          returnKeyType="next"
+          onSubmitEditing={() => passwordInputRef.current?.focus()}
+          editable={!submitting}
+          placeholder="you@email.com"
+        />
+        <AuthTextField
+          ref={passwordInputRef}
+          label="Password"
+          error={fieldErrors.password}
           value={password}
-          onChangeText={setPassword}
+          onChangeText={updatePassword}
+          onBlur={() => setFieldErrors(current => ({
+            ...current,
+            password: validateLogin(email, password).password,
+          }))}
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="current-password"
+          textContentType="password"
+          secureTextEntry={!showPassword}
+          returnKeyType="go"
+          onSubmitEditing={handleLogin}
+          editable={!submitting}
+          placeholder="Password"
+          accessory={
+            <AuthPasswordToggle
+              visible={showPassword}
+              disabled={submitting}
+              onPress={() => setShowPassword(value => !value)}
+            />
+          }
         />
 
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        {error ? <View style={styles.notice}><AuthRequestError message={error} /></View> : null}
+        <View style={styles.submitArea}>
+          <AuthPrimaryButton
+            label="Sign in"
+            loadingLabel="Signing in…"
+            loading={submitting}
+            disabled={submitting || !email.trim() || !password}
+            onPress={handleLogin}
+          />
+        </View>
+      </View>
 
+      <View style={styles.flexSpace} />
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>New to ChainBell?</Text>
         <Pressable
-          style={[styles.primaryButton, submitting ? styles.buttonDisabled : null]}
+          accessibilityRole="button"
+          accessibilityLabel="Create account"
           disabled={submitting}
-          onPress={() => void handleLogin()}>
-          {submitting ? (
-            <ActivityIndicator color={colors.primaryCtaText} />
-          ) : (
-            <Text style={styles.primaryButtonText}>Login</Text>
-          )}
-        </Pressable>
-
-        <Pressable style={styles.secondaryButton} onPress={onShowRegister}>
-          <Text style={styles.secondaryButtonText}>Create an account</Text>
+          onPress={onShowRegister}
+          style={styles.footerLink}>
+          <Text style={[styles.footerLinkText, submitting && styles.footerLinkDisabled]}>
+            Create account
+          </Text>
         </Pressable>
       </View>
-    </KeyboardAvoidingView>
+    </AuthFormLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-    justifyContent: 'center',
-    paddingHorizontal: 18,
-  },
-  card: {
-    backgroundColor: colors.card,
-    borderRadius: 28,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 22,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  subtitle: {
-    marginTop: 10,
-    fontSize: 15,
-    lineHeight: 22,
-    color: colors.textSecondary,
-  },
-  input: {
-    marginTop: 14,
-    backgroundColor: colors.elevated,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    fontSize: 15,
-    color: colors.textPrimary,
-  },
-  errorText: {
-    marginTop: 12,
-    color: colors.negative,
-    fontSize: 14,
-  },
-  primaryButton: {
-    marginTop: 18,
-    backgroundColor: colors.primaryCtaFill,
-    borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 13,
-    minHeight: 48,
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  primaryButtonText: {
-    color: colors.primaryCtaText,
-    fontWeight: '800',
-    fontSize: 15,
-  },
-  secondaryButton: {
-    marginTop: 14,
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  secondaryButtonText: {
-    color: colors.textSecondary,
-    fontWeight: '700',
-  },
+  form: {marginTop: 12},
+  notice: {marginTop: 20},
+  submitArea: {marginTop: 24},
+  flexSpace: {flexGrow: 1, minHeight: 32},
+  footer: {flexDirection: 'row', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap'},
+  footerText: {color: authColors.textSecondary, fontSize: 13.5},
+  footerLink: {minHeight: 44, paddingHorizontal: 6, justifyContent: 'center'},
+  footerLinkText: {color: authColors.focus, fontSize: 13.5, fontWeight: '700'},
+  footerLinkDisabled: {opacity: 0.4},
 });

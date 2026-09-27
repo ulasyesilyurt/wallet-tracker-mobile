@@ -2,10 +2,24 @@ import React, {useEffect, useState} from 'react';
 import {PermissionsAndroid, Platform, SafeAreaView, StatusBar, StyleSheet} from 'react-native';
 import messaging from '@react-native-firebase/messaging';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
-import {AuthProvider} from './src/auth/AuthContext';
+import {AuthProvider, useAuth} from './src/auth/AuthContext';
 import {RootNavigator} from './src/navigation/RootNavigator';
 import {PushRegistrationManager} from './src/notifications/PushRegistrationManager';
 import {colors} from './src/theme/colors';
+import {authColors} from './src/theme/auth';
+
+function AppContent({iosPushReady}: {iosPushReady: boolean}) {
+  const {user} = useAuth();
+  const backgroundColor = user ? colors.background : authColors.background;
+
+  return (
+    <SafeAreaView style={[styles.container, {backgroundColor}]}>
+      <StatusBar barStyle="light-content" backgroundColor={backgroundColor} />
+      <PushRegistrationManager enabled={iosPushReady} />
+      <RootNavigator />
+    </SafeAreaView>
+  );
+}
 
 async function requestAndroidNotificationPermission() {
   if (Platform.OS !== 'android' || Platform.Version < 33) {
@@ -70,13 +84,9 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor={colors.background} />
-        <AuthProvider>
-          <PushRegistrationManager enabled={iosPushReady} />
-          <RootNavigator />
-        </AuthProvider>
-      </SafeAreaView>
+      <AuthProvider>
+        <AppContent iosPushReady={iosPushReady} />
+      </AuthProvider>
     </SafeAreaProvider>
   );
 }
@@ -84,6 +94,5 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
   },
 });

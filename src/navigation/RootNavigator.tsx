@@ -6,7 +6,7 @@ import {AppNavigator} from './AppNavigator';
 import {LoginScreen} from '../screens/LoginScreen';
 import {RegisterScreen} from '../screens/RegisterScreen';
 import {WelcomeScreen} from '../screens/WelcomeScreen';
-import {colors} from '../theme/colors';
+import {authColors} from '../theme/auth';
 
 type AuthRoute = 'login' | 'register';
 const WELCOME_SEEN_KEY = 'chainbell_welcome_seen';
@@ -54,7 +54,7 @@ export function RootNavigator() {
   if (isInitializing || (!user && hasSeenWelcome === null)) {
     return (
       <View style={styles.loadingScreen}>
-        <ActivityIndicator size="large" color={colors.accent} />
+        <ActivityIndicator size="large" color={authColors.focus} />
       </View>
     );
   }
@@ -79,6 +79,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.background,
+    backgroundColor: authColors.background,
   },
 });

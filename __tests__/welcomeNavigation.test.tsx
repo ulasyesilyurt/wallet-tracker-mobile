@@ -46,20 +46,20 @@ it('shows the branded welcome once, then continues to the existing login flow', 
 
   expect(renderer.root.findByType(WelcomeScreen)).toBeTruthy();
   const copy = renderer.root.findAllByType(Text).map(node => node.props.children).flat().join(' ');
-  expect(copy).not.toContain('ChainBell');
-  expect(copy).toContain('YOUR WALLETS, IN THE KNOW');
-  expect(copy).toContain('Real-time wallet alerts and tracking');
-  expect(copy).toContain('Track wallets across chains');
+  expect(copy).toContain('ChainBell');
+  expect(copy).toContain('Know the moment a wallet moves.');
+  expect(copy).toContain('Follow any address and get instant alerts');
+  expect(copy).toContain('Main received 1.25 ETH');
   const logos = renderer.root.findAllByType(Image);
   expect(logos).toHaveLength(1);
   expect(logos[0].props.accessibilityLabel).toBe('ChainBell logo');
   const contentStyle = StyleSheet.flatten(
     renderer.root.findByType(ScrollView).props.contentContainerStyle,
   );
-  expect(contentStyle.paddingBottom).toBe(44);
+  expect(contentStyle.paddingBottom).toBe(8);
 
   await act(async () => {
-    renderer.root.findByProps({accessibilityLabel: 'Continue'}).props.onPress();
+    renderer.root.findByProps({accessibilityLabel: 'Continue with email'}).props.onPress();
   });
 
   expect(renderer.root.findByType(LoginScreen)).toBeTruthy();
@@ -92,7 +92,7 @@ it('still allows continuation when local welcome storage is unavailable', async 
 
   expect(renderer.root.findByType(WelcomeScreen)).toBeTruthy();
   await act(async () => {
-    renderer.root.findByProps({accessibilityLabel: 'Continue'}).props.onPress();
+    renderer.root.findByProps({accessibilityLabel: 'Continue with email'}).props.onPress();
     await Promise.resolve();
   });
 
