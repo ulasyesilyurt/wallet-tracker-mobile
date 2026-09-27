@@ -25,6 +25,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     reactNativeFactory = factory
 
     window = UIWindow(frame: UIScreen.main.bounds)
+    window?.backgroundColor = UIColor(red: 10.0 / 255.0, green: 13.0 / 255.0, blue: 18.0 / 255.0, alpha: 1.0)
 
     factory.startReactNative(
       withModuleName: "WalletTrackerApp",
