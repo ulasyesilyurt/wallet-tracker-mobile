@@ -168,7 +168,7 @@ it('focuses the email code input only after it becomes editable and lets code-ce
   act(() => renderer.unmount());
 });
 
-it('lets an unverified user continue to the app while the initial email request is pending', async () => {
+it('offers no verification bypass while the initial email request is pending', async () => {
   let resolveRequest!: () => void;
   requestVerification.mockReturnValueOnce(new Promise<void>(resolve => { resolveRequest = resolve; }));
   const onBack = jest.fn();
@@ -176,10 +176,10 @@ it('lets an unverified user continue to the app while the initial email request 
   await act(async () => { renderer = TestRenderer.create(
     <VerificationCodeScreen mode="email" email="user@example.com" onBack={onBack} />,
   ); });
-  expect(button(renderer, 'Continue to app').props.disabled).not.toBe(true);
-  act(() => { button(renderer, 'Continue to app').props.onPress(); });
-  expect(onBack).toHaveBeenCalledTimes(1);
+  expect(button(renderer, 'Continue to app')).toBeUndefined();
+  expect(onBack).not.toHaveBeenCalled();
   await act(async () => { resolveRequest(); await Promise.resolve(); });
+  expect(button(renderer, 'Continue to app')).toBeUndefined();
   act(() => renderer.unmount());
 });
 

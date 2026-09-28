@@ -1,5 +1,5 @@
 import React from 'react';
-import {TextInput} from 'react-native';
+import {NativeModules, TextInput} from 'react-native';
 import TestRenderer, {act} from 'react-test-renderer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -9,9 +9,10 @@ import {
   requestEmailVerificationCode,
   verifyEmailVerificationCode,
 } from '../src/api/auth';
+import {ApiError, apiRequest} from '../src/api/client';
 import {AuthProvider} from '../src/auth/AuthContext';
 import {getStoredAccessToken, storeAccessToken} from '../src/auth/authStorage';
-import {setSessionAccessToken, setSessionUser} from '../src/auth/session';
+import {getSessionAccessToken, setSessionAccessToken, setSessionUser} from '../src/auth/session';
 import {RootNavigator} from '../src/navigation/RootNavigator';
 import {VerificationCodeScreen} from '../src/screens/VerificationCodeScreen';
 import {AppNavigator} from '../src/navigation/AppNavigator';
@@ -45,6 +46,7 @@ const login = jest.mocked(loginWithEmail);
 const getUser = jest.mocked(getAuthenticatedUser);
 const requestCode = jest.mocked(requestEmailVerificationCode);
 const verifyCode = jest.mocked(verifyEmailVerificationCode);
+const originalFetch = globalThis.fetch;
 
 function button(renderer: TestRenderer.ReactTestRenderer, label: string) {
   return renderer.root.findAllByProps({accessibilityLabel: label})
@@ -77,6 +79,11 @@ beforeEach(() => {
   verifyCode.mockResolvedValue({...authUser, emailVerified: true});
 });
 
+afterEach(() => {
+  globalThis.fetch = originalFetch;
+  delete NativeModules.ApiConfig;
+});
+
 async function registerUser() {
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
@@ -96,16 +103,13 @@ async function registerUser() {
   return renderer;
 }
 
-it('keeps verification visible after the 202 code request until explicit skip', async () => {
+it('keeps verification visible after the 202 code request without any skip control', async () => {
   const renderer = await registerUser();
   expect(requestCode).toHaveBeenCalledTimes(1);
   expect(renderer.root.findByType(VerificationCodeScreen)).toBeTruthy();
   expect(renderer.root.findAllByType(AppNavigator)).toHaveLength(0);
   expect(verifyCode).not.toHaveBeenCalled();
-
-  act(() => { button(renderer, 'Continue to app').props.onPress(); });
-  expect(renderer.root.findByType(AppNavigator)).toBeTruthy();
-  expect(verifyCode).not.toHaveBeenCalled();
+  expect(button(renderer, 'Continue to app')).toBeUndefined();
   act(() => renderer.unmount());
 });
 
@@ -151,12 +155,11 @@ it('keeps verification visible after an unverified interactive sign-in', async (
   expect(requestCode).toHaveBeenCalledTimes(1);
   expect(renderer.root.findByType(VerificationCodeScreen)).toBeTruthy();
   expect(renderer.root.findAllByType(AppNavigator)).toHaveLength(0);
-  act(() => { button(renderer, 'Continue to app').props.onPress(); });
-  expect(renderer.root.findByType(AppNavigator)).toBeTruthy();
+  expect(button(renderer, 'Continue to app')).toBeUndefined();
   act(() => renderer.unmount());
 });
 
-it('does not prompt during restoration of an existing unverified session', async () => {
+it('requires verification after restoration of an existing unverified session', async () => {
   jest.mocked(getStoredAccessToken).mockResolvedValue('stored-access-token');
   getUser.mockResolvedValue({
     id: 'existing-user', email: 'existing@example.com', emailVerified: false,
@@ -168,8 +171,67 @@ it('does not prompt during restoration of an existing unverified session', async
     await Promise.resolve();
     await Promise.resolve();
   });
+  expect(renderer.root.findByType(VerificationCodeScreen)).toBeTruthy();
+  expect(renderer.root.findAllByType(AppNavigator)).toHaveLength(0);
+  expect(requestCode).toHaveBeenCalledTimes(1);
+  act(() => renderer.unmount());
+});
+
+it('keeps a wrong code on verification until a valid code succeeds', async () => {
+  const renderer = await registerUser();
+  verifyCode.mockRejectedValueOnce(new ApiError(400, 'Invalid or expired code.', 'AUTH_INVALID_CODE'));
+  await act(async () => { input(renderer, '6-digit verification code').props.onChangeText('111111'); });
+  expect(renderer.root.findByType(VerificationCodeScreen)).toBeTruthy();
+  expect(renderer.root.findAllByType(AppNavigator)).toHaveLength(0);
+  await act(async () => { input(renderer, '6-digit verification code').props.onChangeText('222222'); });
   expect(renderer.root.findByType(AppNavigator)).toBeTruthy();
-  expect(renderer.root.findAllByType(VerificationCodeScreen)).toHaveLength(0);
+  act(() => renderer.unmount());
+});
+
+it('lets a verified user enter the app without requesting a code', async () => {
+  jest.mocked(getStoredAccessToken).mockResolvedValue('stored-access-token');
+  getUser.mockResolvedValue({
+    id: 'verified-user', email: 'verified@example.com', emailVerified: true,
+    createdAt: '2026-09-28', updatedAt: '2026-09-28',
+  });
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(<AuthProvider><RootNavigator /></AuthProvider>);
+    await Promise.resolve();
+  });
+  expect(renderer.root.findByType(AppNavigator)).toBeTruthy();
   expect(requestCode).not.toHaveBeenCalled();
+  act(() => renderer.unmount());
+});
+
+it('recovers from a protected-route verification 403 without discarding the token', async () => {
+  jest.mocked(getStoredAccessToken).mockResolvedValue('stored-access-token');
+  getUser.mockResolvedValue({
+    id: 'verified-user', email: 'verified@example.com', emailVerified: true,
+    createdAt: '2026-09-28', updatedAt: '2026-09-28',
+  });
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(<AuthProvider><RootNavigator /></AuthProvider>);
+    await Promise.resolve();
+  });
+  expect(renderer.root.findByType(AppNavigator)).toBeTruthy();
+  NativeModules.ApiConfig = {apiOrigin: 'https://api.example.com', isRelease: true};
+  globalThis.fetch = jest.fn().mockResolvedValue({
+    ok: false, status: 403,
+    json: jest.fn().mockResolvedValue({error: {
+      code: 'AUTH_EMAIL_VERIFICATION_REQUIRED',
+      message: 'Verify your email before accessing this resource.',
+    }}),
+  }) as typeof fetch;
+  await act(async () => {
+    await expect(apiRequest('/wallets')).rejects.toMatchObject({
+      status: 403, code: 'AUTH_EMAIL_VERIFICATION_REQUIRED',
+    });
+  });
+  expect(renderer.root.findByType(VerificationCodeScreen)).toBeTruthy();
+  expect(renderer.root.findAllByType(AppNavigator)).toHaveLength(0);
+  expect(requestCode).toHaveBeenCalledTimes(1);
+  expect(getSessionAccessToken()).toBe('stored-access-token');
   act(() => renderer.unmount());
 });

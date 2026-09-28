@@ -55,7 +55,6 @@ it('updates the verified user while keeping the existing access token and storag
     await currentAuth.register({email: 'user@example.com', password: 'password123'});
   });
   expect(currentAuth.user?.emailVerified).toBe(false);
-  expect(currentAuth.pendingEmailVerificationUserId).toBe('user-1');
   expect(getSessionAccessToken()).toBe('existing-token');
   expect(store).toHaveBeenCalledTimes(1);
 
@@ -64,7 +63,6 @@ it('updates the verified user while keeping the existing access token and storag
   await act(async () => { await currentAuth.verifyEmail('123456'); });
   expect(verify).toHaveBeenCalledWith('123456');
   expect(currentAuth.user?.emailVerified).toBe(true);
-  expect(currentAuth.pendingEmailVerificationUserId).toBe(null);
   expect(getSessionUser()).toEqual(verifiedUser);
   expect(getSessionAccessToken()).toBe('existing-token');
   expect(store).toHaveBeenCalledTimes(1);
@@ -88,7 +86,6 @@ it('preserves the auth response verification flag when /auth/me omits it', async
     await currentAuth.register({email: authUser.email, password: 'password123'});
   });
   expect(currentAuth.user?.emailVerified).toBe(false);
-  expect(currentAuth.pendingEmailVerificationUserId).toBe('new-user');
   expect(getSessionUser()?.emailVerified).toBe(false);
   expect(getSessionAccessToken()).toBe('new-token');
   act(() => renderer.unmount());

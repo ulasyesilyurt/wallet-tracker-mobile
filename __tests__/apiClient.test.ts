@@ -1,5 +1,5 @@
-import {ApiError, apiRequest, isAlchemyWebhookSyncFailure} from '../src/api/client';
-import {setSessionAccessToken} from '../src/auth/session';
+import {ApiError, apiRequest, isAlchemyWebhookSyncFailure, subscribeToEmailVerificationRequired} from '../src/api/client';
+import {setSessionAccessToken, setSessionUser} from '../src/auth/session';
 import {NativeModules} from 'react-native';
 
 const originalFetch = globalThis.fetch;
@@ -19,6 +19,7 @@ function mockResponse(status: number, body: unknown) {
 afterEach(() => {
   globalThis.fetch = originalFetch;
   setSessionAccessToken(null);
+  setSessionUser(null);
   delete NativeModules.ApiConfig;
 });
 
@@ -85,4 +86,59 @@ it('matches only the exact structured sync failure, not other 503 errors', () =>
   expect(isAlchemyWebhookSyncFailure(
     new ApiError(500, 'failure', 'ALCHEMY_WEBHOOK_SYNC_FAILED'),
   )).toBe(false);
+});
+
+it('signals only the exact authenticated verification-required response', async () => {
+  const onVerificationRequired = jest.fn();
+  const unsubscribe = subscribeToEmailVerificationRequired(onVerificationRequired);
+  try {
+    setSessionAccessToken('session-token');
+    mockResponse(403, {error: {
+      code: 'AUTH_EMAIL_VERIFICATION_REQUIRED',
+      message: 'Verify your email before accessing this resource.',
+    }});
+    await expect(apiRequest('/wallets')).rejects.toMatchObject({status: 403, code: 'AUTH_EMAIL_VERIFICATION_REQUIRED'});
+    expect(onVerificationRequired).toHaveBeenCalledTimes(1);
+
+    mockResponse(403, {error: {code: 'OTHER_FORBIDDEN', message: 'Forbidden'}});
+    await expect(apiRequest('/wallets')).rejects.toBeInstanceOf(ApiError);
+    expect(onVerificationRequired).toHaveBeenCalledTimes(1);
+
+    setSessionAccessToken(null);
+    mockResponse(403, {error: {code: 'AUTH_EMAIL_VERIFICATION_REQUIRED', message: 'Forbidden'}});
+    await expect(apiRequest('/wallets')).rejects.toBeInstanceOf(ApiError);
+    expect(onVerificationRequired).toHaveBeenCalledTimes(1);
+  } finally {
+    unsubscribe();
+  }
+});
+
+it('ignores a stale verification-required response from before successful verification', async () => {
+  const onVerificationRequired = jest.fn();
+  const unsubscribe = subscribeToEmailVerificationRequired(onVerificationRequired);
+  try {
+    setSessionAccessToken('session-token');
+    setSessionUser({
+      id: 'user-1', email: 'user@example.com', emailVerified: false,
+      createdAt: '2026-09-28', updatedAt: '2026-09-28',
+    });
+    let resolveFetch!: (response: unknown) => void;
+    globalThis.fetch = jest.fn().mockImplementation(() => new Promise(resolve => { resolveFetch = resolve; })) as typeof fetch;
+    const pendingRequest = apiRequest('/wallets');
+
+    setSessionUser({
+      id: 'user-1', email: 'user@example.com', emailVerified: true,
+      createdAt: '2026-09-28', updatedAt: '2026-09-28',
+    });
+    resolveFetch({
+      ok: false, status: 403,
+      json: jest.fn().mockResolvedValue({error: {
+        code: 'AUTH_EMAIL_VERIFICATION_REQUIRED', message: 'Verify your email before accessing this resource.',
+      }}),
+    });
+    await expect(pendingRequest).rejects.toMatchObject({status: 403, code: 'AUTH_EMAIL_VERIFICATION_REQUIRED'});
+    expect(onVerificationRequired).not.toHaveBeenCalled();
+  } finally {
+    unsubscribe();
+  }
 });

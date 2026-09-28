@@ -11,7 +11,7 @@ type Props = {
   email: string;
   initialError?: string | null;
   initialCooldownEndsAt?: number | null;
-  onBack: () => void;
+  onBack?: () => void;
   onCodeRequested?: (cooldownEndsAt: number) => void;
   onCodeEntered?: (code: string) => void;
   onVerified?: () => void;
@@ -154,8 +154,8 @@ export function VerificationCodeScreen({mode, email, initialError, initialCooldo
         subtitle={mode === 'reset'
           ? 'If an account exists for this email, a 6-digit code is on its way.'
           : codeRequested ? 'Enter the 6-digit code we sent to' : 'We’ll send a 6-digit code to'}
-        onBack={() => { if (!verifying) onBack(); }}
-        backLabel={mode === 'reset' ? 'Back to email' : 'Continue to app'}
+        onBack={mode === 'reset' ? () => { if (!verifying) onBack?.(); } : undefined}
+        backLabel="Back to email"
         hideBrand
       />
       <View style={styles.emailRow}>
@@ -214,11 +214,6 @@ export function VerificationCodeScreen({mode, email, initialError, initialCooldo
       </View>
 
       <View style={styles.secondaryArea}>
-        {mode === 'email' ? (
-          <Pressable accessibilityRole="button" accessibilityLabel="Continue to app" disabled={verifying} onPress={onBack} style={styles.secondaryButton}>
-            <Text style={styles.secondaryButtonText}>Continue to app</Text>
-          </Pressable>
-        ) : null}
         <Text style={styles.hint}>Not there? Check spam or promotions.</Text>
       </View>
     </AuthFormLayout>
@@ -246,7 +241,5 @@ const styles = StyleSheet.create({
   resendButton: {minHeight: 44, alignSelf: 'flex-start', justifyContent: 'center'},
   requestNotice: {marginTop: 20},
   secondaryArea: {marginTop: 30},
-  secondaryButton: {minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: authColors.line, alignItems: 'center', justifyContent: 'center'},
-  secondaryButtonText: {color: authColors.text, fontSize: 14, fontWeight: '700'},
   hint: {color: authColors.textTertiary, fontSize: 12, textAlign: 'center', marginTop: 14},
 });

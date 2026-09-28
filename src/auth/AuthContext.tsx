@@ -1,4 +1,5 @@
 import React, {createContext, useContext, useEffect, useMemo, useState} from 'react';
+import {subscribeToEmailVerificationRequired} from '../api/client';
 import {
   clearStoredAccessToken,
   getStoredAccessToken,
@@ -10,13 +11,12 @@ import {
   registerWithEmail,
   verifyEmailVerificationCode,
 } from '../api/auth';
-import {setSessionAccessToken, setSessionUser} from './session';
+import {getSessionUser, setSessionAccessToken, setSessionUser} from './session';
 import type {AuthUser} from '../types/auth';
 
 type AuthContextValue = {
   user: AuthUser | null;
   isInitializing: boolean;
-  pendingEmailVerificationUserId: string | null;
   login: (payload: {email: string; password: string}) => Promise<void>;
   register: (payload: {
     email: string;
@@ -24,7 +24,6 @@ type AuthContextValue = {
     name?: string;
   }) => Promise<void>;
   verifyEmail: (code: string) => Promise<void>;
-  skipEmailVerification: () => void;
   logout: () => Promise<void>;
 };
 
@@ -48,7 +47,15 @@ async function applyAuthenticatedSession(accessToken: string, authUser?: AuthUse
 export function AuthProvider({children}: {children: React.ReactNode}) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
-  const [pendingEmailVerificationUserId, setPendingEmailVerificationUserId] = useState<string | null>(null);
+
+  useEffect(() => subscribeToEmailVerificationRequired(() => {
+    const sessionUser = getSessionUser();
+    if (sessionUser) setSessionUser({...sessionUser, emailVerified: false});
+    setUser(currentUser => {
+      if (!currentUser) return currentUser;
+      return {...currentUser, emailVerified: false};
+    });
+  }), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -97,37 +104,29 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
     () => ({
       user,
       isInitializing,
-      pendingEmailVerificationUserId,
       async login(payload) {
         const response = await loginWithEmail(payload);
         const nextUser = await applyAuthenticatedSession(response.accessToken, response.user);
-        setPendingEmailVerificationUserId(nextUser.emailVerified === false ? nextUser.id : null);
         setUser(nextUser);
       },
       async register(payload) {
         const response = await registerWithEmail(payload);
         const nextUser = await applyAuthenticatedSession(response.accessToken, response.user);
-        setPendingEmailVerificationUserId(nextUser.emailVerified === false ? nextUser.id : null);
         setUser(nextUser);
       },
       async verifyEmail(code) {
         const verifiedUser = await verifyEmailVerificationCode(code);
         setSessionUser(verifiedUser);
-        setPendingEmailVerificationUserId(null);
         setUser(verifiedUser);
-      },
-      skipEmailVerification() {
-        setPendingEmailVerificationUserId(null);
       },
       async logout() {
         await clearStoredAccessToken();
         setSessionAccessToken(null);
         setSessionUser(null);
-        setPendingEmailVerificationUserId(null);
         setUser(null);
       },
     }),
-    [isInitializing, pendingEmailVerificationUserId, user],
+    [isInitializing, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

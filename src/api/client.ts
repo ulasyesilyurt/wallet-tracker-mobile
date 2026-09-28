@@ -1,9 +1,18 @@
 import {env} from '../config/env';
-import {getSessionAccessToken} from '../auth/session';
+import {getSessionAccessToken, getSessionUser} from '../auth/session';
 
 type RequestOptions = Omit<RequestInit, 'headers'> & {
   headers?: Record<string, string>;
 };
+
+let emailVerificationRequiredListener: (() => void) | null = null;
+
+export function subscribeToEmailVerificationRequired(listener: () => void): () => void {
+  emailVerificationRequiredListener = listener;
+  return () => {
+    if (emailVerificationRequiredListener === listener) emailVerificationRequiredListener = null;
+  };
+}
 
 export class ApiError extends Error {
   readonly status: number;
@@ -42,6 +51,7 @@ function toApiError(status: number, data: unknown): ApiError {
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const accessToken = getSessionAccessToken();
+  const wasUnverifiedAtStart = getSessionUser()?.emailVerified === false;
   const response = await fetch(`${env.apiBaseUrl}${path}`, {
     ...options,
     headers: {
@@ -55,7 +65,13 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   const data = await response.json().catch(() => null);
 
   if (!response.ok) {
-    throw toApiError(response.status, data);
+    const error = toApiError(response.status, data);
+    if (accessToken && getSessionAccessToken() === accessToken &&
+      !(wasUnverifiedAtStart && getSessionUser()?.emailVerified === true) &&
+      error.status === 403 && error.code === 'AUTH_EMAIL_VERIFICATION_REQUIRED') {
+      emailVerificationRequiredListener?.();
+    }
+    throw error;
   }
 
   return data as T;

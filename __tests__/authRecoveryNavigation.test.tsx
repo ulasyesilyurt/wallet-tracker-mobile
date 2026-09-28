@@ -28,17 +28,13 @@ const unverifiedUser = {
   id: 'user-1', email: 'user@example.com', emailVerified: false,
   createdAt: '2026-09-28', updatedAt: '2026-09-28',
 };
-const skipEmailVerification = jest.fn();
-
 function setAuthState(overrides: Partial<ReturnType<typeof useAuth>> = {}) {
   auth.mockReturnValue({
     user: null,
     isInitializing: false,
-    pendingEmailVerificationUserId: null,
     login: jest.fn(),
     register: jest.fn(),
     verifyEmail: jest.fn(),
-    skipEmailVerification,
     logout: jest.fn(),
     ...overrides,
   });
@@ -75,13 +71,12 @@ it('carries email from sign-in through neutral recovery, code entry, and back to
   act(() => renderer.unmount());
 });
 
-it('offers verification after new email registration but never blocks the app', async () => {
+it('requires verification after new email registration and does not allow unknown status into the app', async () => {
   const renderer = await renderRoot();
   act(() => { renderer.root.findByType(LoginScreen).props.onShowRegister(); });
   expect(renderer.root.findByType(RegisterScreen)).toBeTruthy();
   setAuthState({
     user: unverifiedUser,
-    pendingEmailVerificationUserId: unverifiedUser.id,
   });
   act(() => { renderer.update(<RootNavigator />); });
   expect(renderer.root.findByType(VerificationCodeScreen).props.mode).toBe('email');
@@ -89,16 +84,11 @@ it('offers verification after new email registration but never blocks the app', 
   // A later auth-state render must not dismiss a screen that already requested a code.
   setAuthState({
     user: {id: 'user-1', email: 'user@example.com', createdAt: '2026-09-28', updatedAt: '2026-09-28'},
-    pendingEmailVerificationUserId: unverifiedUser.id,
   });
   act(() => { renderer.update(<RootNavigator />); });
   expect(renderer.root.findByType(VerificationCodeScreen).props.mode).toBe('email');
-  act(() => { renderer.root.findByType(VerificationCodeScreen).props.onBack(); });
-  expect(skipEmailVerification).toHaveBeenCalledTimes(1);
-  setAuthState({
-    user: unverifiedUser,
-    pendingEmailVerificationUserId: null,
-  });
+  expect(renderer.root.findAllByType(AppNavigator)).toHaveLength(0);
+  setAuthState({user: {...unverifiedUser, emailVerified: true}});
   act(() => { renderer.update(<RootNavigator />); });
   expect(renderer.root.findByType(AppNavigator)).toBeTruthy();
   act(() => renderer.unmount());
@@ -113,26 +103,19 @@ it('does not show verification for an already verified interactive sign-in', asy
   act(() => renderer.unmount());
 });
 
-it('keeps restored unverified sessions on the existing app route', async () => {
+it('requires verification for restored unverified sessions', async () => {
   setAuthState({user: unverifiedUser});
   const renderer = await renderRoot();
-  expect(renderer.root.findByType(AppNavigator)).toBeTruthy();
-  expect(renderer.root.findAllByType(VerificationCodeScreen)).toHaveLength(0);
+  expect(renderer.root.findByType(VerificationCodeScreen)).toBeTruthy();
+  expect(renderer.root.findAllByType(AppNavigator)).toHaveLength(0);
   act(() => renderer.unmount());
 });
 
-it('offers the same skippable verification after sign-in for an unverified account', async () => {
+it('requires verification after sign-in for an unverified account', async () => {
   const renderer = await renderRoot();
-  setAuthState({
-    user: unverifiedUser,
-    pendingEmailVerificationUserId: unverifiedUser.id,
-  });
-  act(() => { renderer.update(<RootNavigator />); });
-  expect(renderer.root.findByType(VerificationCodeScreen).props.mode).toBe('email');
-  act(() => { renderer.root.findByType(VerificationCodeScreen).props.onBack(); });
-  expect(skipEmailVerification).toHaveBeenCalledTimes(1);
   setAuthState({user: unverifiedUser});
   act(() => { renderer.update(<RootNavigator />); });
-  expect(renderer.root.findByType(AppNavigator)).toBeTruthy();
+  expect(renderer.root.findByType(VerificationCodeScreen).props.mode).toBe('email');
+  expect(renderer.root.findAllByType(AppNavigator)).toHaveLength(0);
   act(() => renderer.unmount());
 });

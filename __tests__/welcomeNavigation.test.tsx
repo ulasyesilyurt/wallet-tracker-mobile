@@ -76,8 +76,8 @@ it('skips welcome on later launches', async () => {
   act(() => renderer.unmount());
 });
 
-it('sends existing signed-in users straight to the app', async () => {
-  auth.mockReturnValue({user: {id: 'user-1'}, isInitializing: false} as ReturnType<typeof useAuth>);
+it('sends existing verified signed-in users straight to the app', async () => {
+  auth.mockReturnValue({user: {id: 'user-1', emailVerified: true}, isInitializing: false} as ReturnType<typeof useAuth>);
   const renderer = await renderRoot();
 
   expect(renderer.root.findByType(AppNavigator)).toBeTruthy();
