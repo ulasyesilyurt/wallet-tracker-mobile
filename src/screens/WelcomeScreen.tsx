@@ -1,7 +1,6 @@
 import React from 'react';
-import {Image, Platform, ScrollView, StyleSheet, Text, View} from 'react-native';
-import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {AuthPrimaryButton} from '../components/AuthUI';
+import {Image, StyleSheet, Text, View} from 'react-native';
+import {AuthFooterLink, AuthScaffold, PrimaryAuthButton} from '../components/AuthUI';
 import {authColors} from '../theme/auth';
 
 type WelcomeScreenProps = {
@@ -11,16 +10,16 @@ type WelcomeScreenProps = {
 const chainBellLogo = require('../assets/chainbell-logo.png');
 
 export function WelcomeScreen({onContinue}: WelcomeScreenProps) {
-  const insets = useSafeAreaInsets();
-  const safePadding = {
-    paddingTop: 20 + (Platform.OS === 'android' ? insets.top : 0),
-    paddingBottom: Platform.OS === 'ios' ? 8 : Math.max(16, insets.bottom + 8),
-  };
-
   return (
-    <ScrollView
-      contentContainerStyle={[styles.screen, safePadding]}>
-      <View style={styles.content}>
+    <AuthScaffold
+      testID="welcome"
+      topSpacing={20}
+      footer={
+        <View style={styles.footer}>
+          <PrimaryAuthButton label="Continue with email" onPress={onContinue} />
+          <AuthFooterLink prompt="Already have an account?" linkLabel="Sign in" onPress={onContinue} />
+        </View>
+      }>
         <View style={styles.brandRow}>
           <Image source={chainBellLogo} style={styles.brandMark} accessibilityLabel="ChainBell logo" />
           <Text style={styles.brandName}>ChainBell</Text>
@@ -49,18 +48,7 @@ export function WelcomeScreen({onContinue}: WelcomeScreenProps) {
           </View>
         </View>
 
-        <View style={styles.footer}>
-          <AuthPrimaryButton
-            label="Continue with email"
-            loadingLabel="Continue with email"
-            loading={false}
-            disabled={false}
-            onPress={onContinue}
-          />
-          <Text style={styles.footerNote}>Sign in or create an account next</Text>
-        </View>
-      </View>
-    </ScrollView>
+    </AuthScaffold>
   );
 }
 
@@ -90,18 +78,6 @@ function AlertPreviewRow({
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flexGrow: 1,
-    backgroundColor: authColors.background,
-    paddingHorizontal: 20,
-  },
-  content: {
-    flexGrow: 1,
-    width: '100%',
-    maxWidth: 440,
-    alignSelf: 'center',
-    justifyContent: 'space-between',
-  },
   brandRow: {flexDirection: 'row', alignItems: 'center', gap: 10},
   brandMark: {width: 40, height: 40, borderRadius: 10},
   brandName: {color: authColors.text, fontSize: 18, fontWeight: '800', letterSpacing: -0.2},
@@ -146,6 +122,5 @@ const styles = StyleSheet.create({
   previewMeta: {color: authColors.textTertiary, fontSize: 11, marginTop: 4},
   previewTime: {color: authColors.textTertiary, fontSize: 11, alignSelf: 'flex-start', marginTop: 15},
   previewDivider: {height: 1, backgroundColor: '#1F2939', marginLeft: 46},
-  footer: {paddingTop: 8},
-  footerNote: {color: authColors.textTertiary, fontSize: 12.5, textAlign: 'center', marginTop: 16},
+  footer: {paddingTop: 8, gap: 8},
 });

@@ -1,17 +1,18 @@
 import React, {useRef, useState} from 'react';
-import {Pressable, StyleSheet, Text, TextInput, View} from 'react-native';
-import Ionicons from 'react-native-vector-icons/Ionicons';
+import {StyleSheet, TextInput, View} from 'react-native';
 import {useAuth} from '../auth/AuthContext';
+import {classifyAuthError} from '../auth/authErrors';
 import {hasAuthFieldErrors, validateRegistration, type AuthFieldErrors} from '../auth/validation';
 import {
-  AuthFormLayout,
+  AuthFooterLink,
   AuthHeader,
-  AuthPasswordToggle,
-  AuthPrimaryButton,
-  AuthRequestError,
+  AuthNotice,
+  AuthScaffold,
   AuthTextField,
+  PasswordField,
+  PasswordRules,
+  PrimaryAuthButton,
 } from '../components/AuthUI';
-import {authColors} from '../theme/auth';
 
 type RegisterScreenProps = {
   onShowLogin: () => void;
@@ -22,10 +23,10 @@ export function RegisterScreen({onShowLogin}: RegisterScreenProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<AuthFieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [accountExists, setAccountExists] = useState(false);
   const submittingRef = useRef(false);
   const passwordInputRef = useRef<TextInput>(null);
   const nameInputRef = useRef<TextInput>(null);
@@ -44,7 +45,12 @@ export function RegisterScreen({onShowLogin}: RegisterScreenProps) {
     try {
       await register({email: email.trim(), password, name: name.trim() || undefined});
     } catch (registerError) {
-      setError(registerError instanceof Error ? registerError.message : 'Could not create account');
+      if (classifyAuthError(registerError) === 'accountExists') {
+        setAccountExists(true);
+        setError('An account with this email already exists.');
+      } else {
+        setError(registerError instanceof Error ? registerError.message : 'Could not create account');
+      }
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
@@ -57,19 +63,26 @@ export function RegisterScreen({onShowLogin}: RegisterScreenProps) {
     if (field === 'name') setName(value);
     setFieldErrors(current => ({...current, [field]: undefined}));
     setError(null);
+    setAccountExists(false);
   }
 
   return (
-    <AuthFormLayout>
+    <AuthScaffold
+      testID="register"
+      navLeading="back"
+      onBack={onShowLogin}
+      backDisabled={submitting}
+      footer={<AuthFooterLink prompt="Already have an account?" linkLabel="Sign in" onPress={onShowLogin} disabled={submitting} />}>
       <AuthHeader
         title="Create account"
         subtitle="Follow wallets. Get alerted in real time."
-        onBack={onShowLogin}
+        showNavigationRow={false}
       />
 
       <View style={styles.form}>
         <AuthTextField
           label="Email"
+          emailPreset
           error={fieldErrors.email}
           value={email}
           onChangeText={value => updateField('email', value)}
@@ -77,18 +90,14 @@ export function RegisterScreen({onShowLogin}: RegisterScreenProps) {
             ...current,
             email: validateRegistration(email, password, name).email,
           }))}
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoComplete="email"
-          keyboardType="email-address"
-          textContentType="emailAddress"
           returnKeyType="next"
           onSubmitEditing={() => passwordInputRef.current?.focus()}
           editable={!submitting}
           placeholder="you@email.com"
         />
-        <AuthTextField
+        <PasswordField
           ref={passwordInputRef}
+          variant="new"
           label="Password"
           error={fieldErrors.password}
           value={password}
@@ -97,31 +106,12 @@ export function RegisterScreen({onShowLogin}: RegisterScreenProps) {
             ...current,
             password: validateRegistration(email, password, name).password,
           }))}
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoComplete="new-password"
-          textContentType="newPassword"
-          secureTextEntry={!showPassword}
           returnKeyType="next"
           onSubmitEditing={() => nameInputRef.current?.focus()}
           editable={!submitting}
           placeholder="Password"
-          accessory={
-            <AuthPasswordToggle
-              visible={showPassword}
-              disabled={submitting}
-              onPress={() => setShowPassword(value => !value)}
-            />
-          }
         />
-        <View style={styles.passwordRule}>
-          <Ionicons
-            name={passwordMeetsRule ? 'checkmark-circle' : 'ellipse-outline'}
-            size={15}
-            color={passwordMeetsRule ? '#35C995' : authColors.textTertiary}
-          />
-          <Text style={styles.passwordRuleText}>8+ characters</Text>
-        </View>
+        <PasswordRules password={password} />
         <AuthTextField
           ref={nameInputRef}
           label="Name (optional)"
@@ -141,10 +131,11 @@ export function RegisterScreen({onShowLogin}: RegisterScreenProps) {
           placeholder="What should we call you?"
         />
 
-        {error ? <View style={styles.notice}><AuthRequestError message={error} /></View> : null}
+        {error ? <View style={styles.notice}><AuthNotice tone="error" message={error} action={accountExists ? {label: 'Sign in', onPress: onShowLogin, testID: 'register.accountExists.signIn'} : undefined} /></View> : null}
         <View style={styles.submitArea}>
-          <AuthPrimaryButton
+          <PrimaryAuthButton
             label="Create account"
+            accessibilityLabel="Create account"
             loadingLabel="Creating account…"
             loading={submitting}
             disabled={submitting || !email.trim() || !passwordMeetsRule || name.trim().length > 120}
@@ -152,33 +143,12 @@ export function RegisterScreen({onShowLogin}: RegisterScreenProps) {
           />
         </View>
       </View>
-
-      <View style={styles.flexSpace} />
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>Already have an account?</Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Sign in"
-          disabled={submitting}
-          onPress={onShowLogin}
-          style={styles.footerLink}>
-          <Text style={[styles.footerLinkText, submitting && styles.footerLinkDisabled]}>Sign in</Text>
-        </Pressable>
-      </View>
-    </AuthFormLayout>
+    </AuthScaffold>
   );
 }
 
 const styles = StyleSheet.create({
   form: {marginTop: 12},
-  passwordRule: {flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10},
-  passwordRuleText: {color: authColors.textSecondary, fontSize: 12},
   notice: {marginTop: 20},
   submitArea: {marginTop: 24},
-  flexSpace: {flexGrow: 1, minHeight: 32},
-  footer: {flexDirection: 'row', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap'},
-  footerText: {color: authColors.textSecondary, fontSize: 13.5},
-  footerLink: {minHeight: 44, paddingHorizontal: 6, justifyContent: 'center'},
-  footerLinkText: {color: authColors.focus, fontSize: 13.5, fontWeight: '700'},
-  footerLinkDisabled: {opacity: 0.4},
 });

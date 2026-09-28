@@ -1,16 +1,18 @@
-import React, {useRef, useState} from 'react';
-import {Pressable, StyleSheet, Text, TextInput, View} from 'react-native';
+import React, {useEffect, useRef, useState} from 'react';
+import {StyleSheet, TextInput, View} from 'react-native';
 import {useAuth} from '../auth/AuthContext';
+import {classifyAuthError} from '../auth/authErrors';
 import {hasAuthFieldErrors, validateLogin, type AuthFieldErrors} from '../auth/validation';
 import {
-  AuthFormLayout,
+  AuthFooterLink,
   AuthHeader,
-  AuthPasswordToggle,
-  AuthPrimaryButton,
-  AuthRequestError,
+  AuthNotice,
+  AuthScaffold,
   AuthTextField,
+  AuthTextLink,
+  PasswordField,
+  PrimaryAuthButton,
 } from '../components/AuthUI';
-import {authColors} from '../theme/auth';
 
 type LoginScreenProps = {
   onShowRegister: () => void;
@@ -22,12 +24,19 @@ export function LoginScreen({onShowRegister, onForgotPassword, initialEmail = ''
   const {login} = useAuth();
   const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<AuthFieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [focusPasswordAfterError, setFocusPasswordAfterError] = useState(false);
   const submittingRef = useRef(false);
   const passwordInputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    if (focusPasswordAfterError && !submitting) {
+      passwordInputRef.current?.focus();
+      setFocusPasswordAfterError(false);
+    }
+  }, [focusPasswordAfterError, submitting]);
 
   async function handleLogin() {
     if (submittingRef.current) return;
@@ -42,7 +51,14 @@ export function LoginScreen({onShowRegister, onForgotPassword, initialEmail = ''
     try {
       await login({email: email.trim(), password});
     } catch (loginError) {
-      setError(loginError instanceof Error ? loginError.message : 'Could not sign in');
+      if (classifyAuthError(loginError) === 'invalidCredentials') {
+        setPassword('');
+        setFieldErrors(current => ({...current, password: undefined}));
+        setError('Email or password is incorrect.');
+        setFocusPasswordAfterError(true);
+      } else {
+        setError(loginError instanceof Error ? loginError.message : 'Could not sign in');
+      }
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
@@ -62,12 +78,16 @@ export function LoginScreen({onShowRegister, onForgotPassword, initialEmail = ''
   }
 
   return (
-    <AuthFormLayout>
-      <AuthHeader title="Sign in" subtitle="Welcome back to ChainBell." />
+    <AuthScaffold
+      testID="login"
+      navLeading="none"
+      footer={<AuthFooterLink prompt="New to ChainBell?" linkLabel="Create account" onPress={onShowRegister} disabled={submitting} />}>
+      <AuthHeader title="Sign in" subtitle="Welcome back to ChainBell." showNavigationRow={false} />
 
       <View style={styles.form}>
         <AuthTextField
           label="Email"
+          emailPreset
           error={fieldErrors.email}
           value={email}
           onChangeText={updateEmail}
@@ -75,18 +95,14 @@ export function LoginScreen({onShowRegister, onForgotPassword, initialEmail = ''
             ...current,
             email: validateLogin(email, password).email,
           }))}
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoComplete="email"
-          keyboardType="email-address"
-          textContentType="emailAddress"
           returnKeyType="next"
           onSubmitEditing={() => passwordInputRef.current?.focus()}
           editable={!submitting}
           placeholder="you@email.com"
         />
-        <AuthTextField
+        <PasswordField
           ref={passwordInputRef}
+          variant="current"
           label="Password"
           error={fieldErrors.password}
           value={password}
@@ -95,37 +111,24 @@ export function LoginScreen({onShowRegister, onForgotPassword, initialEmail = ''
             ...current,
             password: validateLogin(email, password).password,
           }))}
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoComplete="current-password"
-          textContentType="password"
-          secureTextEntry={!showPassword}
           returnKeyType="go"
           onSubmitEditing={handleLogin}
           editable={!submitting}
           placeholder="Password"
-          accessory={
-            <AuthPasswordToggle
-              visible={showPassword}
-              disabled={submitting}
-              onPress={() => setShowPassword(value => !value)}
-            />
-          }
         />
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Forgot password?"
+        <AuthTextLink
+          label="Forgot password?"
           disabled={submitting}
           onPress={() => onForgotPassword(email.trim())}
-          style={styles.forgotLink}>
-          <Text style={[styles.forgotLinkText, submitting && styles.footerLinkDisabled]}>Forgot password?</Text>
-        </Pressable>
+          align="right"
+        />
 
-        {error ? <View style={styles.notice}><AuthRequestError message={error} /></View> : null}
+        {error ? <View style={styles.notice}><AuthNotice tone="error" message={error} /></View> : null}
         <View style={styles.submitArea}>
-          <AuthPrimaryButton
+          <PrimaryAuthButton
             label="Sign in"
+            accessibilityLabel="Sign in"
             loadingLabel="Signing in…"
             loading={submitting}
             disabled={submitting || !email.trim() || !password}
@@ -133,35 +136,12 @@ export function LoginScreen({onShowRegister, onForgotPassword, initialEmail = ''
           />
         </View>
       </View>
-
-      <View style={styles.flexSpace} />
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>New to ChainBell?</Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Create account"
-          disabled={submitting}
-          onPress={onShowRegister}
-          style={styles.footerLink}>
-          <Text style={[styles.footerLinkText, submitting && styles.footerLinkDisabled]}>
-            Create account
-          </Text>
-        </Pressable>
-      </View>
-    </AuthFormLayout>
+    </AuthScaffold>
   );
 }
 
 const styles = StyleSheet.create({
   form: {marginTop: 12},
-  forgotLink: {minHeight: 44, alignSelf: 'flex-end', justifyContent: 'center'},
-  forgotLinkText: {color: authColors.focus, fontSize: 13.5, fontWeight: '700'},
   notice: {marginTop: 20},
   submitArea: {marginTop: 24},
-  flexSpace: {flexGrow: 1, minHeight: 32},
-  footer: {flexDirection: 'row', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap'},
-  footerText: {color: authColors.textSecondary, fontSize: 13.5},
-  footerLink: {minHeight: 44, paddingHorizontal: 6, justifyContent: 'center'},
-  footerLinkText: {color: authColors.focus, fontSize: 13.5, fontWeight: '700'},
-  footerLinkDisabled: {opacity: 0.4},
 });

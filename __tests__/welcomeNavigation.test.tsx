@@ -50,6 +50,8 @@ it('shows the branded welcome once, then continues to the existing login flow', 
   expect(copy).toContain('Know the moment a wallet moves.');
   expect(copy).toContain('Follow any address and get instant alerts');
   expect(copy).toContain('Main received 1.25 ETH');
+  expect(copy).toContain('Already have an account?');
+  expect(copy).not.toMatch(/Continue with Apple|Continue with Google/);
   const logos = renderer.root.findAllByType(Image);
   expect(logos).toHaveLength(1);
   expect(logos[0].props.accessibilityLabel).toBe('ChainBell logo');
@@ -62,6 +64,16 @@ it('shows the branded welcome once, then continues to the existing login flow', 
     renderer.root.findByProps({accessibilityLabel: 'Continue with email'}).props.onPress();
   });
 
+  expect(renderer.root.findByType(LoginScreen)).toBeTruthy();
+  expect(setItem).toHaveBeenCalledWith('chainbell_welcome_seen', 'true');
+  act(() => renderer.unmount());
+});
+
+it('uses the existing welcome marker and sign-in destination for the footer action', async () => {
+  const renderer = await renderRoot();
+  await act(async () => {
+    renderer.root.findByProps({accessibilityLabel: 'Already have an account? Sign in'}).props.onPress();
+  });
   expect(renderer.root.findByType(LoginScreen)).toBeTruthy();
   expect(setItem).toHaveBeenCalledWith('chainbell_welcome_seen', 'true');
   act(() => renderer.unmount());

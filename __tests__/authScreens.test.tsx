@@ -1,6 +1,7 @@
 import React from 'react';
 import {Text, TextInput} from 'react-native';
 import TestRenderer, {act} from 'react-test-renderer';
+import {ApiError} from '../src/api/client';
 import {useAuth} from '../src/auth/AuthContext';
 import {LoginScreen} from '../src/screens/LoginScreen';
 import {RegisterScreen} from '../src/screens/RegisterScreen';
@@ -10,6 +11,20 @@ jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({top: 24, bottom: 24, left: 0, right: 0}),
 }));
 jest.mock('../src/auth/AuthContext', () => ({useAuth: jest.fn()}));
+const mockFocusedWhileEditable: boolean[] = [];
+
+jest.mock('react-native/Libraries/Components/TextInput/TextInput', () => {
+  const ReactForMock = require('react');
+  const MockTextInput = ReactForMock.forwardRef((props: {editable?: boolean; accessibilityLabel?: string}, ref: React.Ref<{focus: () => void}>) => {
+    ReactForMock.useImperativeHandle(ref, () => ({
+      focus: () => {
+        if (props.accessibilityLabel === 'Password') mockFocusedWhileEditable.push(props.editable === true);
+      },
+    }));
+    return ReactForMock.createElement('MockTextInput', props);
+  });
+  return {__esModule: true, default: MockTextInput};
+});
 
 const auth = jest.mocked(useAuth);
 const login = jest.fn<Promise<void>, [{email: string; password: string}]>();
@@ -17,7 +32,10 @@ const register = jest.fn<Promise<void>, [{email: string; password: string; name?
 
 function button(renderer: TestRenderer.ReactTestRenderer, label: string) {
   const candidates = renderer.root.findAllByProps({accessibilityLabel: label});
-  return candidates.find(node => node.props.accessibilityRole === 'button')!;
+  return candidates.find(node => node.props.accessibilityRole === 'button') ??
+    renderer.root.findAll(node => node.props.accessibilityRole === 'button' &&
+      typeof node.props.accessibilityLabel === 'string' &&
+      node.props.accessibilityLabel.endsWith(` ${label}`))[0]!;
 }
 
 function input(renderer: TestRenderer.ReactTestRenderer, label: string) {
@@ -36,6 +54,7 @@ function deferred() {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockFocusedWhileEditable.length = 0;
   login.mockReset();
   register.mockReset();
   login.mockResolvedValue(undefined);
@@ -103,6 +122,24 @@ it('keeps sign-in loading in its button, blocks duplicates, and clears request e
   act(() => renderer.unmount());
 });
 
+it('keeps the email, clears and refocuses the password after typed invalid credentials', async () => {
+  login.mockRejectedValueOnce(new ApiError(401, 'Invalid credentials.', 'AUTH_INVALID_CREDENTIALS'));
+  let renderer!: TestRenderer.ReactTestRenderer;
+  act(() => { renderer = TestRenderer.create(<LoginScreen onShowRegister={jest.fn()} onForgotPassword={jest.fn()} />); });
+  act(() => {
+    input(renderer, 'Email').props.onChangeText('user@example.com');
+    input(renderer, 'Password').props.onChangeText('badpassword');
+  });
+  await act(async () => { await button(renderer, 'Sign in').props.onPress(); });
+  expect(input(renderer, 'Email').props.value).toBe('user@example.com');
+  expect(input(renderer, 'Password').props.value).toBe('');
+  expect(copy(renderer)).toContain('Email or password is incorrect.');
+  expect(copy(renderer)).not.toContain('Invalid credentials.');
+  expect(button(renderer, 'Sign in').props.disabled).toBe(true);
+  expect(mockFocusedWhileEditable).toEqual([true]);
+  act(() => renderer.unmount());
+});
+
 it('keeps the optional name, eight-character rule, and existing registration payload', async () => {
   const onShowLogin = jest.fn();
   let renderer!: TestRenderer.ReactTestRenderer;
@@ -163,5 +200,21 @@ it('presents and clears a registration request error', async () => {
   expect(copy(renderer)).toContain('An account with that email already exists.');
   act(() => { input(renderer, 'Email').props.onChangeText('other@example.com'); });
   expect(copy(renderer)).not.toContain('An account with that email already exists.');
+  act(() => renderer.unmount());
+});
+
+it('offers sign in for the typed account-exists response without changing registration payload', async () => {
+  const onShowLogin = jest.fn();
+  register.mockRejectedValueOnce(new ApiError(409, 'Account conflict.', 'AUTH_EMAIL_IN_USE'));
+  let renderer!: TestRenderer.ReactTestRenderer;
+  act(() => { renderer = TestRenderer.create(<RegisterScreen onShowLogin={onShowLogin} />); });
+  act(() => {
+    input(renderer, 'Email').props.onChangeText('user@example.com');
+    input(renderer, 'Password').props.onChangeText('12345678');
+  });
+  await act(async () => { await button(renderer, 'Create account').props.onPress(); });
+  expect(copy(renderer)).toContain('An account with this email already exists.');
+  act(() => { renderer.root.findByProps({testID: 'register.accountExists.signIn'}).props.onPress(); });
+  expect(onShowLogin).toHaveBeenCalledTimes(1);
   act(() => renderer.unmount());
 });

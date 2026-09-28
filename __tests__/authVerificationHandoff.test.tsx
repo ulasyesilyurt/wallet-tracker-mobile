@@ -56,7 +56,10 @@ function UserProbe() {
 
 function button(renderer: TestRenderer.ReactTestRenderer, label: string) {
   return renderer.root.findAllByProps({accessibilityLabel: label})
-    .find(node => node.props.accessibilityRole === 'button')!;
+    .find(node => node.props.accessibilityRole === 'button') ??
+    renderer.root.findAll(node => node.props.accessibilityRole === 'button' &&
+      typeof node.props.accessibilityLabel === 'string' &&
+      node.props.accessibilityLabel.endsWith(` ${label}`))[0]!;
 }
 
 function input(renderer: TestRenderer.ReactTestRenderer, label: string) {

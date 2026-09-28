@@ -1,10 +1,9 @@
 import React, {useRef, useState} from 'react';
 import {StyleSheet, Text, View} from 'react-native';
-import Ionicons from 'react-native-vector-icons/Ionicons';
 import {resetPasswordWithCode} from '../api/auth';
 import {ApiError} from '../api/client';
 import {newPasswordError} from '../auth/validation';
-import {AuthFormLayout, AuthHeader, AuthPasswordToggle, AuthPrimaryButton, AuthRequestError, AuthTextField} from '../components/AuthUI';
+import {AuthHeader, AuthNotice, AuthScaffold, PasswordField, PasswordRules, PrimaryAuthButton} from '../components/AuthUI';
 import {authColors} from '../theme/auth';
 
 type Props = {
@@ -17,7 +16,6 @@ type Props = {
 
 export function NewPasswordScreen({email, code, onBack, onInvalidCode, onResetSuccess}: Props) {
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [fieldError, setFieldError] = useState<string | undefined>();
   const [requestError, setRequestError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -49,16 +47,20 @@ export function NewPasswordScreen({email, code, onBack, onInvalidCode, onResetSu
   }
 
   return (
-    <AuthFormLayout>
+    <AuthScaffold
+      testID="newPassword"
+      navLeading="back"
+      onBack={() => { if (!submittingRef.current) onBack(); }}
+      backDisabled={submitting}>
       <AuthHeader
         title="Set a new password"
         subtitle={`For ${email}`}
-        onBack={() => { if (!submittingRef.current) onBack(); }}
-        backLabel="Back to code"
-        hideBrand
+        showNavigationRow={false}
+        showLogo={false}
       />
       <View style={styles.form}>
-        <AuthTextField
+        <PasswordField
+          variant="new"
           label="New password"
           value={password}
           error={fieldError}
@@ -68,25 +70,17 @@ export function NewPasswordScreen({email, code, onBack, onInvalidCode, onResetSu
             setRequestError(null);
           }}
           onBlur={() => setFieldError(newPasswordError(password))}
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoComplete="new-password"
-          textContentType="newPassword"
-          secureTextEntry={!showPassword}
           returnKeyType="done"
           onSubmitEditing={handleSave}
           editable={!submitting}
           placeholder="New password"
-          accessory={<AuthPasswordToggle visible={showPassword} disabled={submitting} onPress={() => setShowPassword(value => !value)} />}
         />
-        <View style={styles.passwordRule}>
-          <Ionicons name={passwordMeetsRule ? 'checkmark-circle' : 'ellipse-outline'} size={15} color={passwordMeetsRule ? '#35C995' : authColors.textTertiary} />
-          <Text style={styles.passwordRuleText}>8+ characters</Text>
-        </View>
-        {requestError ? <View style={styles.notice}><AuthRequestError message={requestError} /></View> : null}
+        <PasswordRules password={password} />
+        {requestError ? <View style={styles.notice}><AuthNotice tone="error" message={requestError} /></View> : null}
         <View style={styles.submitArea}>
-          <AuthPrimaryButton
+          <PrimaryAuthButton
             label="Save new password"
+            accessibilityLabel="Save new password"
             loadingLabel="Saving password…"
             loading={submitting}
             disabled={submitting || !passwordMeetsRule}
@@ -95,14 +89,12 @@ export function NewPasswordScreen({email, code, onBack, onInvalidCode, onResetSu
           <Text style={styles.helper}>Sign in with your new password after saving.</Text>
         </View>
       </View>
-    </AuthFormLayout>
+    </AuthScaffold>
   );
 }
 
 const styles = StyleSheet.create({
   form: {marginTop: 24},
-  passwordRule: {flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10},
-  passwordRuleText: {color: authColors.textSecondary, fontSize: 12},
   notice: {marginTop: 20},
   submitArea: {marginTop: 24},
   helper: {color: authColors.textTertiary, fontSize: 12, textAlign: 'center', marginTop: 14},
