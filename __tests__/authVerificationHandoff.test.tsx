@@ -1,5 +1,5 @@
 import React from 'react';
-import {NativeModules, TextInput} from 'react-native';
+import {AppState, NativeModules, TextInput} from 'react-native';
 import TestRenderer, {act} from 'react-test-renderer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -138,10 +138,18 @@ it('keeps the pending verification prompt if RootNavigator remounts', async () =
   expect(requestCode).toHaveBeenCalledTimes(1);
 
   await act(async () => {
+    renderer.update(<AuthProvider><RootNavigator /></AuthProvider>);
+    await Promise.resolve();
+  });
+  expect(requestCode).toHaveBeenCalledTimes(1);
+
+  await act(async () => {
     renderer.update(<AuthProvider><RootNavigator key="remounted" /></AuthProvider>);
     await Promise.resolve();
   });
 
+  expect(register).toHaveBeenCalledTimes(1);
+  expect(requestCode).toHaveBeenCalledTimes(1);
   expect(renderer.root.findByType(VerificationCodeScreen)).toBeTruthy();
   expect(renderer.root.findAllByType(AppNavigator)).toHaveLength(0);
   expect(verifyCode).not.toHaveBeenCalled();
@@ -175,6 +183,61 @@ it('keeps verification visible after an unverified interactive sign-in', async (
   expect(requestCode).toHaveBeenCalledTimes(1);
   expect(renderer.root.findByType(VerificationCodeScreen)).toBeTruthy();
   expect(renderer.root.findAllByType(AppNavigator)).toHaveLength(0);
+  expect(button(renderer, 'Continue to app')).toBeUndefined();
+
+  await act(async () => {
+    renderer.update(<AuthProvider><RootNavigator key="signin-remount" /></AuthProvider>);
+    await Promise.resolve();
+  });
+  expect(login).toHaveBeenCalledTimes(1);
+  expect(requestCode).toHaveBeenCalledTimes(1);
+  act(() => renderer.unmount());
+});
+
+it('never automatically requests a code on restored re-render or background-to-active resume', async () => {
+  const changeListeners: Array<(state: 'background' | 'active') => void> = [];
+  const addEventListener = jest.spyOn(AppState, 'addEventListener').mockImplementation((type, listener) => {
+    if (type === 'change') {
+      changeListeners.push(listener as (state: 'background' | 'active') => void);
+    }
+    return {remove: jest.fn()};
+  });
+  let renderer!: TestRenderer.ReactTestRenderer;
+  try {
+    renderer = await restoreUnverifiedUser();
+    await act(async () => {
+      renderer.update(<AuthProvider><RootNavigator /></AuthProvider>);
+      changeListeners.forEach(listener => listener('background'));
+      await Promise.resolve();
+    });
+    await act(async () => {
+      renderer.update(<AuthProvider><RootNavigator /></AuthProvider>);
+      changeListeners.forEach(listener => listener('active'));
+      await Promise.resolve();
+    });
+
+    expect(renderer.root.findByType(VerificationCodeScreen)).toBeTruthy();
+    expect(requestCode).not.toHaveBeenCalled();
+  } finally {
+    if (renderer) act(() => renderer.unmount());
+    addEventListener.mockRestore();
+  }
+});
+
+it('fails closed when a restored user has no emailVerified field', async () => {
+  jest.mocked(getStoredAccessToken).mockResolvedValue('stored-access-token');
+  getUser.mockResolvedValue({
+    id: 'older-user', email: 'older@example.com',
+    createdAt: '2026-09-28', updatedAt: '2026-09-28',
+  });
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(<AuthProvider><RootNavigator /></AuthProvider>);
+    await Promise.resolve();
+  });
+  expect(renderer.root.findByType(VerificationCodeScreen)).toBeTruthy();
+  expect(renderer.root.findAllByType(AppNavigator)).toHaveLength(0);
+  expect(requestCode).not.toHaveBeenCalled();
   expect(button(renderer, 'Continue to app')).toBeUndefined();
   act(() => renderer.unmount());
 });
