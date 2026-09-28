@@ -15,7 +15,7 @@ type AuthRoute = 'login' | 'register' | 'forgot' | 'resetCode' | 'newPassword';
 const WELCOME_SEEN_KEY = 'chainbell_welcome_seen';
 
 export function RootNavigator() {
-  const {user, isInitializing} = useAuth();
+  const {user, isInitializing, consumeInitialVerificationCodeRequest} = useAuth();
   const [authRoute, setAuthRoute] = useState<AuthRoute>('login');
   const [hasSeenWelcome, setHasSeenWelcome] = useState<boolean | null>(null);
   const [authEmail, setAuthEmail] = useState('');
@@ -131,6 +131,7 @@ export function RootNavigator() {
     return <VerificationCodeScreen
       mode="email"
       email={user.email}
+      shouldRequestInitialCode={() => consumeInitialVerificationCodeRequest(user.id)}
     />;
   }
 

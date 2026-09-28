@@ -55,6 +55,8 @@ it('updates the verified user while keeping the existing access token and storag
     await currentAuth.register({email: 'user@example.com', password: 'password123'});
   });
   expect(currentAuth.user?.emailVerified).toBe(false);
+  expect(currentAuth.consumeInitialVerificationCodeRequest('user-1')).toBe(true);
+  expect(currentAuth.consumeInitialVerificationCodeRequest('user-1')).toBe(false);
   expect(getSessionAccessToken()).toBe('existing-token');
   expect(store).toHaveBeenCalledTimes(1);
 

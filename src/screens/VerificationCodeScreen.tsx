@@ -15,11 +15,12 @@ type Props = {
   onCodeRequested?: (cooldownEndsAt: number) => void;
   onCodeEntered?: (code: string) => void;
   onVerified?: () => void;
+  shouldRequestInitialCode?: () => boolean;
 };
 
 const RESEND_SECONDS = 60;
 
-export function VerificationCodeScreen({mode, email, initialError, initialCooldownEndsAt, onBack, onCodeRequested, onCodeEntered, onVerified}: Props) {
+export function VerificationCodeScreen({mode, email, initialError, initialCooldownEndsAt, onBack, onCodeRequested, onCodeEntered, onVerified, shouldRequestInitialCode}: Props) {
   const {verifyEmail} = useAuth();
   const inputRef = useRef<TextInput>(null);
   const requestInFlight = useRef(false);
@@ -84,9 +85,10 @@ export function VerificationCodeScreen({mode, email, initialError, initialCooldo
   useEffect(() => {
     if (mode === 'email' && !requestedOnMount.current) {
       requestedOnMount.current = true;
-      sendCode();
+      if (shouldRequestInitialCode?.()) sendCode();
+      else setFocusWhenEditable(true);
     }
-  }, [mode, sendCode]);
+  }, [mode, sendCode, shouldRequestInitialCode]);
 
   useEffect(() => {
     if (focusWhenEditable && !requesting && !verifying) {
@@ -153,7 +155,7 @@ export function VerificationCodeScreen({mode, email, initialError, initialCooldo
         title="Check your email"
         subtitle={mode === 'reset'
           ? 'If an account exists for this email, a 6-digit code is on its way.'
-          : codeRequested ? 'Enter the 6-digit code we sent to' : 'We’ll send a 6-digit code to'}
+          : codeRequested ? 'Enter the 6-digit code we sent to' : 'Enter your 6-digit code for'}
         onBack={mode === 'reset' ? () => { if (!verifying) onBack?.(); } : undefined}
         backLabel="Back to email"
         hideBrand

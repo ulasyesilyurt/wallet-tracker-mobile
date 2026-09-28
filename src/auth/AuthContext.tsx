@@ -1,4 +1,4 @@
-import React, {createContext, useContext, useEffect, useMemo, useState} from 'react';
+import React, {createContext, useContext, useEffect, useMemo, useRef, useState} from 'react';
 import {subscribeToEmailVerificationRequired} from '../api/client';
 import {
   clearStoredAccessToken,
@@ -23,6 +23,7 @@ type AuthContextValue = {
     password: string;
     name?: string;
   }) => Promise<void>;
+  consumeInitialVerificationCodeRequest: (userId: string) => boolean;
   verifyEmail: (code: string) => Promise<void>;
   logout: () => Promise<void>;
 };
@@ -47,6 +48,7 @@ async function applyAuthenticatedSession(accessToken: string, authUser?: AuthUse
 export function AuthProvider({children}: {children: React.ReactNode}) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
+  const initialVerificationCodeRequestUserId = useRef<string | null>(null);
 
   useEffect(() => subscribeToEmailVerificationRequired(() => {
     const sessionUser = getSessionUser();
@@ -109,19 +111,28 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
       async login(payload) {
         const response = await loginWithEmail(payload);
         const nextUser = await applyAuthenticatedSession(response.accessToken, response.user);
+        initialVerificationCodeRequestUserId.current = nextUser.emailVerified !== true ? nextUser.id : null;
         setUser(nextUser);
       },
       async register(payload) {
         const response = await registerWithEmail(payload);
         const nextUser = await applyAuthenticatedSession(response.accessToken, response.user);
+        initialVerificationCodeRequestUserId.current = nextUser.emailVerified !== true ? nextUser.id : null;
         setUser(nextUser);
+      },
+      consumeInitialVerificationCodeRequest(userId) {
+        if (initialVerificationCodeRequestUserId.current !== userId) return false;
+        initialVerificationCodeRequestUserId.current = null;
+        return true;
       },
       async verifyEmail(code) {
         const verifiedUser = await verifyEmailVerificationCode(code);
+        initialVerificationCodeRequestUserId.current = null;
         setSessionUser(verifiedUser);
         setUser(verifiedUser);
       },
       async logout() {
+        initialVerificationCodeRequestUserId.current = null;
         await clearStoredAccessToken();
         setSessionAccessToken(null);
         setSessionUser(null);

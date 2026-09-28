@@ -126,7 +126,7 @@ it('requests email verification once, clears invalid codes, and submits the next
   const onVerified = jest.fn();
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => { renderer = TestRenderer.create(
-    <VerificationCodeScreen mode="email" email="user@example.com" onBack={jest.fn()} onVerified={onVerified} />,
+    <VerificationCodeScreen mode="email" email="user@example.com" onBack={jest.fn()} onVerified={onVerified} shouldRequestInitialCode={() => true} />,
   ); });
   expect(requestVerification).toHaveBeenCalledTimes(1);
 
@@ -148,7 +148,7 @@ it('focuses the email code input only after it becomes editable and lets code-ce
   mockFocusedWhileEditable.length = 0;
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
-    renderer = TestRenderer.create(<VerificationCodeScreen mode="email" email="user@example.com" onBack={jest.fn()} />);
+    renderer = TestRenderer.create(<VerificationCodeScreen mode="email" email="user@example.com" onBack={jest.fn()} shouldRequestInitialCode={() => true} />);
   });
 
   expect(requestVerification).toHaveBeenCalledTimes(1);
@@ -168,13 +168,27 @@ it('focuses the email code input only after it becomes editable and lets code-ce
   act(() => renderer.unmount());
 });
 
+it('focuses an existing email code on mount without requesting another one', async () => {
+  mockFocusedWhileEditable.length = 0;
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(<VerificationCodeScreen mode="email" email="user@example.com" shouldRequestInitialCode={() => false} />);
+  });
+
+  expect(requestVerification).not.toHaveBeenCalled();
+  expect(input(renderer, '6-digit verification code').props.editable).toBe(true);
+  expect(mockFocusedWhileEditable).toEqual([true]);
+  expect(button(renderer, 'Resend code')).toBeTruthy();
+  act(() => renderer.unmount());
+});
+
 it('offers no verification bypass while the initial email request is pending', async () => {
   let resolveRequest!: () => void;
   requestVerification.mockReturnValueOnce(new Promise<void>(resolve => { resolveRequest = resolve; }));
   const onBack = jest.fn();
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => { renderer = TestRenderer.create(
-    <VerificationCodeScreen mode="email" email="user@example.com" onBack={onBack} />,
+    <VerificationCodeScreen mode="email" email="user@example.com" onBack={onBack} shouldRequestInitialCode={() => true} />,
   ); });
   expect(button(renderer, 'Continue to app')).toBeUndefined();
   expect(onBack).not.toHaveBeenCalled();

@@ -109,6 +109,20 @@ async function registerUser() {
   return renderer;
 }
 
+async function restoreUnverifiedUser() {
+  jest.mocked(getStoredAccessToken).mockResolvedValue('stored-access-token');
+  getUser.mockResolvedValue({
+    id: 'existing-user', email: 'existing@example.com', emailVerified: false,
+    createdAt: '2026-09-28', updatedAt: '2026-09-28',
+  });
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(<AuthProvider><RootNavigator /></AuthProvider>);
+    await Promise.resolve();
+  });
+  return renderer;
+}
+
 it('keeps verification visible after the 202 code request without any skip control', async () => {
   const renderer = await registerUser();
   expect(requestCode).toHaveBeenCalledTimes(1);
@@ -166,20 +180,38 @@ it('keeps verification visible after an unverified interactive sign-in', async (
 });
 
 it('requires verification after restoration of an existing unverified session', async () => {
-  jest.mocked(getStoredAccessToken).mockResolvedValue('stored-access-token');
-  getUser.mockResolvedValue({
-    id: 'existing-user', email: 'existing@example.com', emailVerified: false,
-    createdAt: '2026-09-28', updatedAt: '2026-09-28',
-  });
-  let renderer!: TestRenderer.ReactTestRenderer;
-  await act(async () => {
-    renderer = TestRenderer.create(<AuthProvider><RootNavigator /></AuthProvider>);
-    await Promise.resolve();
-    await Promise.resolve();
-  });
+  const renderer = await restoreUnverifiedUser();
   expect(renderer.root.findByType(VerificationCodeScreen)).toBeTruthy();
   expect(renderer.root.findAllByType(AppNavigator)).toHaveLength(0);
+  expect(requestCode).not.toHaveBeenCalled();
+  expect(input(renderer, '6-digit verification code').props.editable).toBe(true);
+  expect(button(renderer, 'Resend code')).toBeTruthy();
+  act(() => renderer.unmount());
+});
+
+it('accepts a previously sent code after restoring an unverified session', async () => {
+  const renderer = await restoreUnverifiedUser();
+  expect(requestCode).not.toHaveBeenCalled();
+  verifyCode.mockResolvedValue({
+    id: 'existing-user', email: 'existing@example.com', emailVerified: true,
+    createdAt: '2026-09-28', updatedAt: '2026-09-28',
+  });
+
+  await act(async () => { input(renderer, '6-digit verification code').props.onChangeText('123456'); });
+  expect(verifyCode).toHaveBeenCalledWith('123456');
+  expect(requestCode).not.toHaveBeenCalled();
+  expect(renderer.root.findByType(AppNavigator)).toBeTruthy();
+  act(() => renderer.unmount());
+});
+
+it('allows explicit resend after restoring an unverified session', async () => {
+  const renderer = await restoreUnverifiedUser();
+  expect(requestCode).not.toHaveBeenCalled();
+
+  await act(async () => { button(renderer, 'Resend code').props.onPress(); await Promise.resolve(); });
   expect(requestCode).toHaveBeenCalledTimes(1);
+  expect(button(renderer, 'Resend code')).toBeUndefined();
+  expect(renderer.root.findByType(VerificationCodeScreen)).toBeTruthy();
   act(() => renderer.unmount());
 });
 
@@ -237,7 +269,7 @@ it('recovers from a protected-route verification 403 without discarding the toke
   });
   expect(renderer.root.findByType(VerificationCodeScreen)).toBeTruthy();
   expect(renderer.root.findAllByType(AppNavigator)).toHaveLength(0);
-  expect(requestCode).toHaveBeenCalledTimes(1);
+  expect(requestCode).not.toHaveBeenCalled();
   expect(getSessionAccessToken()).toBe('stored-access-token');
 
   const unverifiedUser = currentUser;
@@ -247,6 +279,6 @@ it('recovers from a protected-route verification 403 without discarding the toke
     });
   });
   expect(currentUser).toBe(unverifiedUser);
-  expect(requestCode).toHaveBeenCalledTimes(1);
+  expect(requestCode).not.toHaveBeenCalled();
   act(() => renderer.unmount());
 });
