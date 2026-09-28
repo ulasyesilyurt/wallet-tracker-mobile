@@ -10,7 +10,7 @@ import {
   verifyEmailVerificationCode,
 } from '../src/api/auth';
 import {ApiError, apiRequest} from '../src/api/client';
-import {AuthProvider} from '../src/auth/AuthContext';
+import {AuthProvider, useAuth} from '../src/auth/AuthContext';
 import {getStoredAccessToken, storeAccessToken} from '../src/auth/authStorage';
 import {getSessionAccessToken, setSessionAccessToken, setSessionUser} from '../src/auth/session';
 import {RootNavigator} from '../src/navigation/RootNavigator';
@@ -47,6 +47,12 @@ const getUser = jest.mocked(getAuthenticatedUser);
 const requestCode = jest.mocked(requestEmailVerificationCode);
 const verifyCode = jest.mocked(verifyEmailVerificationCode);
 const originalFetch = globalThis.fetch;
+let currentUser: ReturnType<typeof useAuth>['user'];
+
+function UserProbe() {
+  currentUser = useAuth().user;
+  return null;
+}
 
 function button(renderer: TestRenderer.ReactTestRenderer, label: string) {
   return renderer.root.findAllByProps({accessibilityLabel: label})
@@ -212,7 +218,7 @@ it('recovers from a protected-route verification 403 without discarding the toke
   });
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
-    renderer = TestRenderer.create(<AuthProvider><RootNavigator /></AuthProvider>);
+    renderer = TestRenderer.create(<AuthProvider><UserProbe /><RootNavigator /></AuthProvider>);
     await Promise.resolve();
   });
   expect(renderer.root.findByType(AppNavigator)).toBeTruthy();
@@ -233,5 +239,14 @@ it('recovers from a protected-route verification 403 without discarding the toke
   expect(renderer.root.findAllByType(AppNavigator)).toHaveLength(0);
   expect(requestCode).toHaveBeenCalledTimes(1);
   expect(getSessionAccessToken()).toBe('stored-access-token');
+
+  const unverifiedUser = currentUser;
+  await act(async () => {
+    await expect(apiRequest('/wallets')).rejects.toMatchObject({
+      status: 403, code: 'AUTH_EMAIL_VERIFICATION_REQUIRED',
+    });
+  });
+  expect(currentUser).toBe(unverifiedUser);
+  expect(requestCode).toHaveBeenCalledTimes(1);
   act(() => renderer.unmount());
 });

@@ -50,9 +50,11 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
 
   useEffect(() => subscribeToEmailVerificationRequired(() => {
     const sessionUser = getSessionUser();
-    if (sessionUser) setSessionUser({...sessionUser, emailVerified: false});
+    if (sessionUser && sessionUser.emailVerified !== false) {
+      setSessionUser({...sessionUser, emailVerified: false});
+    }
     setUser(currentUser => {
-      if (!currentUser) return currentUser;
+      if (!currentUser || currentUser.emailVerified === false) return currentUser;
       return {...currentUser, emailVerified: false};
     });
   }), []);

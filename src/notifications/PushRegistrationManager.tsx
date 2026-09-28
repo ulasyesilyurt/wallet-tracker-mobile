@@ -10,9 +10,11 @@ function getCurrentPlatform(): 'ios' | 'android' {
 
 export function PushRegistrationManager({enabled = true}: {enabled?: boolean}) {
   const {user} = useAuth();
+  const userId = user?.id;
+  const isVerified = user?.emailVerified === true;
 
   useEffect(() => {
-    if (!user || !enabled) {
+    if (!userId || !isVerified || !enabled) {
       return;
     }
 
@@ -21,6 +23,7 @@ export function PushRegistrationManager({enabled = true}: {enabled?: boolean}) {
     async function registerCurrentToken() {
       try {
         const token = await messaging().getToken();
+        if (cancelled) return;
 
         console.log('[notifications] token acquisition for authenticated user', {
           acquired: true,
@@ -51,6 +54,7 @@ export function PushRegistrationManager({enabled = true}: {enabled?: boolean}) {
     registerCurrentToken();
 
     const unsubscribe = messaging().onTokenRefresh(token => {
+      if (cancelled) return;
       console.log('[notifications] token refresh acquired for authenticated user', {
         acquired: true,
       });
@@ -76,7 +80,7 @@ export function PushRegistrationManager({enabled = true}: {enabled?: boolean}) {
       cancelled = true;
       unsubscribe();
     };
-  }, [user, enabled]);
+  }, [userId, isVerified, enabled]);
 
   return null;
 }
