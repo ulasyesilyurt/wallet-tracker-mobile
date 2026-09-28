@@ -57,12 +57,17 @@ beforeEach(() => {
 
 it('matches the auth safe-area background without changing signed-in chrome', async () => {
   expect(walletsColors.background).toBe('#08090B');
-  expect(authColors.background).toBe(walletsColors.background);
+  expect(authColors.background).toBe('#070A12');
   let renderer = await renderApp();
-  expect(renderer.root.findByType(StatusBar).props.backgroundColor).toBe(walletsColors.background);
+  expect(renderer.root.findByType(StatusBar).props.backgroundColor).toBe(authColors.background);
   act(() => renderer.unmount());
 
-  auth.mockReturnValue({user: {id: 'user-1'}} as ReturnType<typeof useAuth>);
+  auth.mockReturnValue({user: {id: 'user-1', emailVerified: false}} as ReturnType<typeof useAuth>);
+  renderer = await renderApp();
+  expect(renderer.root.findByType(StatusBar).props.backgroundColor).toBe(authColors.background);
+  act(() => renderer.unmount());
+
+  auth.mockReturnValue({user: {id: 'user-1', emailVerified: true}} as ReturnType<typeof useAuth>);
   renderer = await renderApp();
   expect(renderer.root.findByType(StatusBar).props.backgroundColor).toBe(colors.background);
   act(() => renderer.unmount());

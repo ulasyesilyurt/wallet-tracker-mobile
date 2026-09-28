@@ -10,7 +10,7 @@ import {authColors} from './src/theme/auth';
 
 function AppContent({iosPushReady}: {iosPushReady: boolean}) {
   const {user} = useAuth();
-  const backgroundColor = user ? colors.background : authColors.background;
+  const backgroundColor = user?.emailVerified === true ? colors.background : authColors.background;
 
   return (
     <SafeAreaView style={[styles.container, {backgroundColor}]}>
