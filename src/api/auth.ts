@@ -45,3 +45,38 @@ export async function getAuthenticatedUser(): Promise<AuthUser> {
   const response = await apiRequest<MeResponseEnvelope>('/auth/me');
   return response.data.user;
 }
+
+type MessageEnvelope = {data: {message: string}};
+
+export async function requestEmailVerificationCode(): Promise<void> {
+  await apiRequest<MessageEnvelope>('/auth/email-verification/request', {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export async function verifyEmailVerificationCode(code: string): Promise<AuthUser> {
+  const response = await apiRequest<MeResponseEnvelope>('/auth/email-verification/verify', {
+    method: 'POST',
+    body: JSON.stringify({code}),
+  });
+  return response.data.user;
+}
+
+export async function requestPasswordResetCode(email: string): Promise<void> {
+  await apiRequest<MessageEnvelope>('/auth/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify({email}),
+  });
+}
+
+export async function resetPasswordWithCode(payload: {
+  email: string;
+  code: string;
+  newPassword: string;
+}): Promise<void> {
+  await apiRequest<MessageEnvelope>('/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}

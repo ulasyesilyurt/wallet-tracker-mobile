@@ -4,7 +4,12 @@ import {
   getStoredAccessToken,
   storeAccessToken,
 } from './authStorage';
-import {getAuthenticatedUser, loginWithEmail, registerWithEmail} from '../api/auth';
+import {
+  getAuthenticatedUser,
+  loginWithEmail,
+  registerWithEmail,
+  verifyEmailVerificationCode,
+} from '../api/auth';
 import {setSessionAccessToken, setSessionUser} from './session';
 import type {AuthUser} from '../types/auth';
 
@@ -17,6 +22,7 @@ type AuthContextValue = {
     password: string;
     name?: string;
   }) => Promise<void>;
+  verifyEmail: (code: string) => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -91,6 +97,11 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
         const response = await registerWithEmail(payload);
         const nextUser = await applyAuthenticatedSession(response.accessToken);
         setUser(nextUser);
+      },
+      async verifyEmail(code) {
+        const verifiedUser = await verifyEmailVerificationCode(code);
+        setSessionUser(verifiedUser);
+        setUser(verifiedUser);
       },
       async logout() {
         await clearStoredAccessToken();

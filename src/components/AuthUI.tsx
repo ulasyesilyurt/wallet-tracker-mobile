@@ -42,10 +42,14 @@ export function AuthHeader({
   title,
   subtitle,
   onBack,
+  hideBrand = false,
+  backLabel = 'Back to Sign In',
 }: {
   title: string;
   subtitle: string;
   onBack?: () => void;
+  hideBrand?: boolean;
+  backLabel?: string;
 }) {
   return (
     <View>
@@ -53,15 +57,15 @@ export function AuthHeader({
         {onBack ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Back to Sign In"
+            accessibilityLabel={backLabel}
             onPress={onBack}
             style={styles.backButton}>
             <Ionicons name="chevron-back" size={22} color={authColors.text} />
           </Pressable>
         ) : null}
       </View>
-      <Image source={chainBellLogo} style={styles.brandMark} accessibilityLabel="ChainBell logo" />
-      <Text style={styles.title}>{title}</Text>
+      {!hideBrand ? <Image source={chainBellLogo} style={styles.brandMark} accessibilityLabel="ChainBell logo" /> : null}
+      <Text style={[styles.title, hideBrand && styles.titleWithoutBrand]}>{title}</Text>
       <Text style={styles.subtitle}>{subtitle}</Text>
     </View>
   );
@@ -191,6 +195,7 @@ const styles = StyleSheet.create({
   },
   brandMark: {width: 36, height: 36, borderRadius: 10, marginTop: 12, marginBottom: 16},
   title: {color: authColors.text, fontSize: 28, lineHeight: 33, fontWeight: '800', letterSpacing: -0.7},
+  titleWithoutBrand: {marginTop: 12},
   subtitle: {color: authColors.textSecondary, fontSize: 15, lineHeight: 22, marginTop: 6},
   field: {marginTop: 16},
   fieldLabel: {color: authColors.textTertiary, fontSize: 12, fontWeight: '700'},

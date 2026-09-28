@@ -6,15 +6,23 @@ import {AppNavigator} from './AppNavigator';
 import {LoginScreen} from '../screens/LoginScreen';
 import {RegisterScreen} from '../screens/RegisterScreen';
 import {WelcomeScreen} from '../screens/WelcomeScreen';
+import {ForgotPasswordScreen} from '../screens/ForgotPasswordScreen';
+import {VerificationCodeScreen} from '../screens/VerificationCodeScreen';
+import {NewPasswordScreen} from '../screens/NewPasswordScreen';
 import {authColors} from '../theme/auth';
 
-type AuthRoute = 'login' | 'register';
+type AuthRoute = 'login' | 'register' | 'forgot' | 'resetCode' | 'newPassword';
 const WELCOME_SEEN_KEY = 'chainbell_welcome_seen';
 
 export function RootNavigator() {
   const {user, isInitializing} = useAuth();
   const [authRoute, setAuthRoute] = useState<AuthRoute>('login');
   const [hasSeenWelcome, setHasSeenWelcome] = useState<boolean | null>(null);
+  const [authEmail, setAuthEmail] = useState('');
+  const [resetCode, setResetCode] = useState('');
+  const [resetCodeError, setResetCodeError] = useState<string | null>(null);
+  const [resetResendUntil, setResetResendUntil] = useState<number | null>(null);
+  const [showEmailVerification, setShowEmailVerification] = useState(false);
 
   useEffect(() => {
     if (isInitializing) {
@@ -65,10 +73,69 @@ export function RootNavigator() {
     }
 
     if (authRoute === 'register') {
-      return <RegisterScreen onShowLogin={() => setAuthRoute('login')} />;
+      return <RegisterScreen onShowLogin={() => setAuthRoute('login')} onRegistered={() => setShowEmailVerification(true)} />;
     }
 
-    return <LoginScreen onShowRegister={() => setAuthRoute('register')} />;
+    if (authRoute === 'forgot') {
+      return <ForgotPasswordScreen
+        initialEmail={authEmail}
+        focusEmail
+        onBack={email => { setAuthEmail(email); setAuthRoute('login'); }}
+        onCodeSent={email => {
+          setAuthEmail(email);
+          setResetCodeError(null);
+          setResetResendUntil(Date.now() + 60_000);
+          setAuthRoute('resetCode');
+        }}
+      />;
+    }
+
+    if (authRoute === 'resetCode') {
+      return <VerificationCodeScreen
+        mode="reset"
+        email={authEmail}
+        initialError={resetCodeError}
+        initialCooldownEndsAt={resetResendUntil}
+        onCodeRequested={setResetResendUntil}
+        onBack={() => setAuthRoute('forgot')}
+        onCodeEntered={code => { setResetCode(code); setResetCodeError(null); setAuthRoute('newPassword'); }}
+      />;
+    }
+
+    if (authRoute === 'newPassword') {
+      return <NewPasswordScreen
+        email={authEmail}
+        code={resetCode}
+        onBack={() => setAuthRoute('resetCode')}
+        onInvalidCode={() => {
+          setResetCode('');
+          setResetCodeError('Invalid or expired code. Request a new one.');
+          setAuthRoute('resetCode');
+        }}
+        onResetSuccess={() => {
+          setResetCode('');
+          setResetCodeError(null);
+          setResetResendUntil(null);
+          setAuthRoute('login');
+        }}
+      />;
+    }
+
+    return <LoginScreen
+      initialEmail={authEmail}
+      onShowRegister={() => setAuthRoute('register')}
+      onForgotPassword={email => { setAuthEmail(email); setAuthRoute('forgot'); }}
+      onSignedIn={() => setShowEmailVerification(true)}
+    />;
+  }
+
+  if (showEmailVerification && user.emailVerified === false) {
+    return <VerificationCodeScreen
+      mode="email"
+      email={user.email}
+      onBack={() => setShowEmailVerification(false)}
+      onVerified={() => setShowEmailVerification(false)}
+    />;
   }
 
   return <AppNavigator />;

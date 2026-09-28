@@ -14,11 +14,14 @@ import {authColors} from '../theme/auth';
 
 type LoginScreenProps = {
   onShowRegister: () => void;
+  onForgotPassword: (email: string) => void;
+  onSignedIn: () => void;
+  initialEmail?: string;
 };
 
-export function LoginScreen({onShowRegister}: LoginScreenProps) {
+export function LoginScreen({onShowRegister, onForgotPassword, onSignedIn, initialEmail = ''}: LoginScreenProps) {
   const {login} = useAuth();
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<AuthFieldErrors>({});
@@ -39,6 +42,7 @@ export function LoginScreen({onShowRegister}: LoginScreenProps) {
     setError(null);
     try {
       await login({email: email.trim(), password});
+      onSignedIn();
     } catch (loginError) {
       setError(loginError instanceof Error ? loginError.message : 'Could not sign in');
     } finally {
@@ -111,6 +115,15 @@ export function LoginScreen({onShowRegister}: LoginScreenProps) {
           }
         />
 
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Forgot password?"
+          disabled={submitting}
+          onPress={() => onForgotPassword(email.trim())}
+          style={styles.forgotLink}>
+          <Text style={[styles.forgotLinkText, submitting && styles.footerLinkDisabled]}>Forgot password?</Text>
+        </Pressable>
+
         {error ? <View style={styles.notice}><AuthRequestError message={error} /></View> : null}
         <View style={styles.submitArea}>
           <AuthPrimaryButton
@@ -143,6 +156,8 @@ export function LoginScreen({onShowRegister}: LoginScreenProps) {
 
 const styles = StyleSheet.create({
   form: {marginTop: 12},
+  forgotLink: {minHeight: 44, alignSelf: 'flex-end', justifyContent: 'center'},
+  forgotLinkText: {color: authColors.focus, fontSize: 13.5, fontWeight: '700'},
   notice: {marginTop: 20},
   submitArea: {marginTop: 24},
   flexSpace: {flexGrow: 1, minHeight: 32},
