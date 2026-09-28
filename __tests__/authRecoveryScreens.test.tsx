@@ -28,6 +28,18 @@ const requestVerification = jest.mocked(requestEmailVerificationCode);
 const requestReset = jest.mocked(requestPasswordResetCode);
 const resetPassword = jest.mocked(resetPasswordWithCode);
 const verifyEmail = jest.fn<Promise<void>, [string]>();
+const mockFocusedWhileEditable: boolean[] = [];
+
+jest.mock('react-native/Libraries/Components/TextInput/TextInput', () => {
+  const ReactForMock = require('react');
+  const MockTextInput = ReactForMock.forwardRef((props: {editable?: boolean}, ref: React.Ref<{focus: () => void}>) => {
+    ReactForMock.useImperativeHandle(ref, () => ({
+      focus: () => mockFocusedWhileEditable.push(props.editable === true),
+    }));
+    return ReactForMock.createElement('MockTextInput', props);
+  });
+  return {__esModule: true, default: MockTextInput};
+});
 
 function button(renderer: TestRenderer.ReactTestRenderer, label: string) {
   return renderer.root.findAllByProps({accessibilityLabel: label})
@@ -127,6 +139,32 @@ it('requests email verification once, clears invalid codes, and submits the next
   await act(async () => { input(renderer, '6-digit verification code').props.onChangeText('222222'); });
   expect(verifyEmail).toHaveBeenCalledTimes(2);
   expect(onVerified).toHaveBeenCalledTimes(1);
+  act(() => renderer.unmount());
+});
+
+it('focuses the email code input only after it becomes editable and lets code-cell taps refocus it', async () => {
+  let resolveRequest!: () => void;
+  requestVerification.mockReturnValueOnce(new Promise<void>(resolve => { resolveRequest = resolve; }));
+  mockFocusedWhileEditable.length = 0;
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(<VerificationCodeScreen mode="email" email="user@example.com" onBack={jest.fn()} />);
+  });
+
+  expect(requestVerification).toHaveBeenCalledTimes(1);
+  expect(input(renderer, '6-digit verification code').props.editable).toBe(false);
+  expect(input(renderer, '6-digit verification code').props.autoFocus).toBe(false);
+  expect(mockFocusedWhileEditable).toEqual([]);
+
+  await act(async () => { resolveRequest(); await Promise.resolve(); });
+  expect(input(renderer, '6-digit verification code').props.editable).toBe(true);
+  expect(mockFocusedWhileEditable).toEqual([true]);
+
+  const codeCells = renderer.root.findAll(node => node.props.accessible === false && typeof node.props.onPress === 'function')[0];
+  expect(codeCells).toBeTruthy();
+  expect(input(renderer, '6-digit verification code').props.pointerEvents).toBe('none');
+  act(() => { codeCells.props.onPress(); });
+  expect(mockFocusedWhileEditable).toEqual([true, true]);
   act(() => renderer.unmount());
 });
 

@@ -15,11 +15,10 @@ import {authColors} from '../theme/auth';
 type LoginScreenProps = {
   onShowRegister: () => void;
   onForgotPassword: (email: string) => void;
-  onSignedIn: () => void;
   initialEmail?: string;
 };
 
-export function LoginScreen({onShowRegister, onForgotPassword, onSignedIn, initialEmail = ''}: LoginScreenProps) {
+export function LoginScreen({onShowRegister, onForgotPassword, initialEmail = ''}: LoginScreenProps) {
   const {login} = useAuth();
   const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState('');
@@ -42,7 +41,6 @@ export function LoginScreen({onShowRegister, onForgotPassword, onSignedIn, initi
     setError(null);
     try {
       await login({email: email.trim(), password});
-      onSignedIn();
     } catch (loginError) {
       setError(loginError instanceof Error ? loginError.message : 'Could not sign in');
     } finally {

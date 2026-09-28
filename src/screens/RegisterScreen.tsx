@@ -15,10 +15,9 @@ import {authColors} from '../theme/auth';
 
 type RegisterScreenProps = {
   onShowLogin: () => void;
-  onRegistered: () => void;
 };
 
-export function RegisterScreen({onShowLogin, onRegistered}: RegisterScreenProps) {
+export function RegisterScreen({onShowLogin}: RegisterScreenProps) {
   const {register} = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -44,7 +43,6 @@ export function RegisterScreen({onShowLogin, onRegistered}: RegisterScreenProps)
     setError(null);
     try {
       await register({email: email.trim(), password, name: name.trim() || undefined});
-      onRegistered();
     } catch (registerError) {
       setError(registerError instanceof Error ? registerError.message : 'Could not create account');
     } finally {

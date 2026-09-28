@@ -15,14 +15,13 @@ type AuthRoute = 'login' | 'register' | 'forgot' | 'resetCode' | 'newPassword';
 const WELCOME_SEEN_KEY = 'chainbell_welcome_seen';
 
 export function RootNavigator() {
-  const {user, isInitializing} = useAuth();
+  const {user, isInitializing, pendingEmailVerificationUserId, skipEmailVerification} = useAuth();
   const [authRoute, setAuthRoute] = useState<AuthRoute>('login');
   const [hasSeenWelcome, setHasSeenWelcome] = useState<boolean | null>(null);
   const [authEmail, setAuthEmail] = useState('');
   const [resetCode, setResetCode] = useState('');
   const [resetCodeError, setResetCodeError] = useState<string | null>(null);
   const [resetResendUntil, setResetResendUntil] = useState<number | null>(null);
-  const [showEmailVerification, setShowEmailVerification] = useState(false);
 
   useEffect(() => {
     if (isInitializing) {
@@ -73,7 +72,7 @@ export function RootNavigator() {
     }
 
     if (authRoute === 'register') {
-      return <RegisterScreen onShowLogin={() => setAuthRoute('login')} onRegistered={() => setShowEmailVerification(true)} />;
+      return <RegisterScreen onShowLogin={() => setAuthRoute('login')} />;
     }
 
     if (authRoute === 'forgot') {
@@ -125,16 +124,15 @@ export function RootNavigator() {
       initialEmail={authEmail}
       onShowRegister={() => setAuthRoute('register')}
       onForgotPassword={email => { setAuthEmail(email); setAuthRoute('forgot'); }}
-      onSignedIn={() => setShowEmailVerification(true)}
     />;
   }
 
-  if (showEmailVerification && user.emailVerified === false) {
+  if (pendingEmailVerificationUserId === user.id) {
     return <VerificationCodeScreen
       mode="email"
       email={user.email}
-      onBack={() => setShowEmailVerification(false)}
-      onVerified={() => setShowEmailVerification(false)}
+      onBack={skipEmailVerification}
+      onVerified={skipEmailVerification}
     />;
   }
 

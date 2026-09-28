@@ -24,6 +24,25 @@ jest.mock('../src/screens/NewPasswordScreen', () => ({NewPasswordScreen: jest.fn
 jest.mock('../src/navigation/AppNavigator', () => ({AppNavigator: jest.fn(() => null)}));
 
 const auth = jest.mocked(useAuth);
+const unverifiedUser = {
+  id: 'user-1', email: 'user@example.com', emailVerified: false,
+  createdAt: '2026-09-28', updatedAt: '2026-09-28',
+};
+const skipEmailVerification = jest.fn();
+
+function setAuthState(overrides: Partial<ReturnType<typeof useAuth>> = {}) {
+  auth.mockReturnValue({
+    user: null,
+    isInitializing: false,
+    pendingEmailVerificationUserId: null,
+    login: jest.fn(),
+    register: jest.fn(),
+    verifyEmail: jest.fn(),
+    skipEmailVerification,
+    logout: jest.fn(),
+    ...overrides,
+  });
+}
 
 async function renderRoot() {
   let renderer!: TestRenderer.ReactTestRenderer;
@@ -33,7 +52,7 @@ async function renderRoot() {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  auth.mockReturnValue({user: null, isInitializing: false} as ReturnType<typeof useAuth>);
+  setAuthState();
   jest.mocked(AsyncStorage.getItem).mockResolvedValue('true');
   jest.mocked(AsyncStorage.setItem).mockResolvedValue(undefined);
 });
@@ -59,24 +78,43 @@ it('carries email from sign-in through neutral recovery, code entry, and back to
 it('offers verification after new email registration but never blocks the app', async () => {
   const renderer = await renderRoot();
   act(() => { renderer.root.findByType(LoginScreen).props.onShowRegister(); });
-  act(() => { renderer.root.findByType(RegisterScreen).props.onRegistered(); });
-  auth.mockReturnValue({
-    user: {id: 'user-1', email: 'user@example.com', emailVerified: false},
-    isInitializing: false,
-  } as ReturnType<typeof useAuth>);
+  expect(renderer.root.findByType(RegisterScreen)).toBeTruthy();
+  setAuthState({
+    user: unverifiedUser,
+    pendingEmailVerificationUserId: unverifiedUser.id,
+  });
   act(() => { renderer.update(<RootNavigator />); });
   expect(renderer.root.findByType(VerificationCodeScreen).props.mode).toBe('email');
   expect(renderer.root.findByType(VerificationCodeScreen).props.email).toBe('user@example.com');
+  // A later auth-state render must not dismiss a screen that already requested a code.
+  setAuthState({
+    user: {id: 'user-1', email: 'user@example.com', createdAt: '2026-09-28', updatedAt: '2026-09-28'},
+    pendingEmailVerificationUserId: unverifiedUser.id,
+  });
+  act(() => { renderer.update(<RootNavigator />); });
+  expect(renderer.root.findByType(VerificationCodeScreen).props.mode).toBe('email');
   act(() => { renderer.root.findByType(VerificationCodeScreen).props.onBack(); });
+  expect(skipEmailVerification).toHaveBeenCalledTimes(1);
+  setAuthState({
+    user: unverifiedUser,
+    pendingEmailVerificationUserId: null,
+  });
+  act(() => { renderer.update(<RootNavigator />); });
   expect(renderer.root.findByType(AppNavigator)).toBeTruthy();
   act(() => renderer.unmount());
 });
 
+it('does not show verification for an already verified interactive sign-in', async () => {
+  const renderer = await renderRoot();
+  setAuthState({user: {...unverifiedUser, emailVerified: true}});
+  act(() => { renderer.update(<RootNavigator />); });
+  expect(renderer.root.findByType(AppNavigator)).toBeTruthy();
+  expect(renderer.root.findAllByType(VerificationCodeScreen)).toHaveLength(0);
+  act(() => renderer.unmount());
+});
+
 it('keeps restored unverified sessions on the existing app route', async () => {
-  auth.mockReturnValue({
-    user: {id: 'user-1', email: 'user@example.com', emailVerified: false},
-    isInitializing: false,
-  } as ReturnType<typeof useAuth>);
+  setAuthState({user: unverifiedUser});
   const renderer = await renderRoot();
   expect(renderer.root.findByType(AppNavigator)).toBeTruthy();
   expect(renderer.root.findAllByType(VerificationCodeScreen)).toHaveLength(0);
@@ -85,14 +123,16 @@ it('keeps restored unverified sessions on the existing app route', async () => {
 
 it('offers the same skippable verification after sign-in for an unverified account', async () => {
   const renderer = await renderRoot();
-  act(() => { renderer.root.findByType(LoginScreen).props.onSignedIn(); });
-  auth.mockReturnValue({
-    user: {id: 'user-1', email: 'user@example.com', emailVerified: false},
-    isInitializing: false,
-  } as ReturnType<typeof useAuth>);
+  setAuthState({
+    user: unverifiedUser,
+    pendingEmailVerificationUserId: unverifiedUser.id,
+  });
   act(() => { renderer.update(<RootNavigator />); });
   expect(renderer.root.findByType(VerificationCodeScreen).props.mode).toBe('email');
   act(() => { renderer.root.findByType(VerificationCodeScreen).props.onBack(); });
+  expect(skipEmailVerification).toHaveBeenCalledTimes(1);
+  setAuthState({user: unverifiedUser});
+  act(() => { renderer.update(<RootNavigator />); });
   expect(renderer.root.findByType(AppNavigator)).toBeTruthy();
   act(() => renderer.unmount());
 });

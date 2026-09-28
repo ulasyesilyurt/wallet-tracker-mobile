@@ -31,6 +31,7 @@ export function VerificationCodeScreen({mode, email, initialError, initialCooldo
   const [focused, setFocused] = useState(false);
   const [requesting, setRequesting] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [focusWhenEditable, setFocusWhenEditable] = useState(false);
   const [codeError, setCodeError] = useState<string | null>(initialError ?? null);
   const [requestError, setRequestError] = useState<string | null>(null);
   const [codeRequested, setCodeRequested] = useState(mode === 'reset');
@@ -61,7 +62,7 @@ export function VerificationCodeScreen({mode, email, initialError, initialCooldo
       setCode('');
       setCodeError(null);
       lastSubmitted.current = '';
-      inputRef.current?.focus();
+      setFocusWhenEditable(true);
     } catch (error) {
       if (!mounted.current) return;
       setRequestError(error instanceof Error ? error.message : 'Could not send a code. Try again.');
@@ -86,6 +87,13 @@ export function VerificationCodeScreen({mode, email, initialError, initialCooldo
       sendCode();
     }
   }, [mode, sendCode]);
+
+  useEffect(() => {
+    if (focusWhenEditable && !requesting && !verifying) {
+      setFocusWhenEditable(false);
+      inputRef.current?.focus();
+    }
+  }, [focusWhenEditable, requesting, verifying]);
 
   useEffect(() => {
     if (cooldownEndsAt === null) return;
@@ -113,11 +121,11 @@ export function VerificationCodeScreen({mode, email, initialError, initialCooldo
         setCodeError('That code didn’t match or has expired. Try again or resend.');
         setCode('');
         lastSubmitted.current = '';
-        inputRef.current?.focus();
       } else {
         setRequestError(error instanceof Error ? error.message : 'Could not verify the code. Try again.');
         lastSubmitted.current = '';
       }
+      setFocusWhenEditable(true);
     } finally {
       verifyInFlight.current = false;
       setVerifying(false);
@@ -160,7 +168,7 @@ export function VerificationCodeScreen({mode, email, initialError, initialCooldo
       </View>
 
       <View style={styles.codeArea}>
-        <Pressable onPress={() => inputRef.current?.focus()} style={styles.cells} accessible={false}>
+        <Pressable onPress={() => { if (!busy) inputRef.current?.focus(); }} style={styles.cells} accessible={false}>
           {Array.from({length: 6}, (_, index) => (
             <View key={index} style={[
               styles.cell,
@@ -183,9 +191,10 @@ export function VerificationCodeScreen({mode, email, initialError, initialCooldo
             textContentType="oneTimeCode"
             autoComplete={Platform.OS === 'ios' ? 'one-time-code' : 'sms-otp'}
             importantForAutofill="yes"
-            autoFocus
+            autoFocus={mode === 'reset'}
             editable={!busy}
             caretHidden
+            pointerEvents="none"
             style={styles.hiddenInput}
           />
         </Pressable>

@@ -47,8 +47,7 @@ it('keeps only supported sign-in actions, validates on blur, and toggles passwor
   const onShowRegister = jest.fn();
   const onForgotPassword = jest.fn();
   let renderer!: TestRenderer.ReactTestRenderer;
-  const onSignedIn = jest.fn();
-  act(() => { renderer = TestRenderer.create(<LoginScreen onShowRegister={onShowRegister} onForgotPassword={onForgotPassword} onSignedIn={onSignedIn} />); });
+  act(() => { renderer = TestRenderer.create(<LoginScreen onShowRegister={onShowRegister} onForgotPassword={onForgotPassword} />); });
   expect(button(renderer, 'Sign in').props.disabled).toBe(true);
   expect(copy(renderer)).toContain('Welcome back to ChainBell.');
   expect(copy(renderer)).toContain('Forgot password?');
@@ -71,7 +70,6 @@ it('keeps only supported sign-in actions, validates on blur, and toggles passwor
 
   await act(async () => { await button(renderer, 'Sign in').props.onPress(); });
   expect(login).toHaveBeenCalledWith({email: 'user@example.com', password: 'secret'});
-  expect(onSignedIn).toHaveBeenCalledTimes(1);
   act(() => { button(renderer, 'Create account').props.onPress(); });
   expect(onShowRegister).toHaveBeenCalledTimes(1);
   act(() => { button(renderer, 'Forgot password?').props.onPress(); });
@@ -83,7 +81,7 @@ it('keeps sign-in loading in its button, blocks duplicates, and clears request e
   const pending = deferred();
   login.mockReturnValueOnce(pending.promise);
   let renderer!: TestRenderer.ReactTestRenderer;
-  act(() => { renderer = TestRenderer.create(<LoginScreen onShowRegister={jest.fn()} onForgotPassword={jest.fn()} onSignedIn={jest.fn()} />); });
+  act(() => { renderer = TestRenderer.create(<LoginScreen onShowRegister={jest.fn()} onForgotPassword={jest.fn()} />); });
   act(() => {
     input(renderer, 'Email').props.onChangeText('user@example.com');
     input(renderer, 'Password').props.onChangeText('secret');
@@ -107,9 +105,8 @@ it('keeps sign-in loading in its button, blocks duplicates, and clears request e
 
 it('keeps the optional name, eight-character rule, and existing registration payload', async () => {
   const onShowLogin = jest.fn();
-  const onRegistered = jest.fn();
   let renderer!: TestRenderer.ReactTestRenderer;
-  act(() => { renderer = TestRenderer.create(<RegisterScreen onShowLogin={onShowLogin} onRegistered={onRegistered} />); });
+  act(() => { renderer = TestRenderer.create(<RegisterScreen onShowLogin={onShowLogin} />); });
   expect(button(renderer, 'Create account').props.disabled).toBe(true);
   expect(copy(renderer)).toContain('8+ characters');
   expect(copy(renderer)).not.toMatch(/number or symbol|verification|Continue with Apple|Continue with Google/i);
@@ -121,7 +118,6 @@ it('keeps the optional name, eight-character rule, and existing registration pay
   });
   await act(async () => { await button(renderer, 'Create account').props.onPress(); });
   expect(register).toHaveBeenCalledWith({email: 'user@example.com', password: 'abcdefgh', name: 'Ada'});
-  expect(onRegistered).toHaveBeenCalledTimes(1);
   act(() => { button(renderer, 'Sign in').props.onPress(); });
   expect(onShowLogin).toHaveBeenCalledTimes(1);
   act(() => renderer.unmount());
@@ -131,7 +127,7 @@ it('disables invalid registration and blocks duplicate submits while showing but
   const pending = deferred();
   register.mockReturnValueOnce(pending.promise);
   let renderer!: TestRenderer.ReactTestRenderer;
-  act(() => { renderer = TestRenderer.create(<RegisterScreen onShowLogin={jest.fn()} onRegistered={jest.fn()} />); });
+  act(() => { renderer = TestRenderer.create(<RegisterScreen onShowLogin={jest.fn()} />); });
   act(() => {
     input(renderer, 'Email').props.onChangeText('user@example.com');
     input(renderer, 'Password').props.onChangeText('12345678');
@@ -158,7 +154,7 @@ it('disables invalid registration and blocks duplicate submits while showing but
 it('presents and clears a registration request error', async () => {
   register.mockRejectedValueOnce(new Error('An account with that email already exists.'));
   let renderer!: TestRenderer.ReactTestRenderer;
-  act(() => { renderer = TestRenderer.create(<RegisterScreen onShowLogin={jest.fn()} onRegistered={jest.fn()} />); });
+  act(() => { renderer = TestRenderer.create(<RegisterScreen onShowLogin={jest.fn()} />); });
   act(() => {
     input(renderer, 'Email').props.onChangeText('user@example.com');
     input(renderer, 'Password').props.onChangeText('12345678');
