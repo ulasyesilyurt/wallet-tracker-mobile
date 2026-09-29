@@ -4,6 +4,7 @@ import type {AuthUser} from '../types/auth';
 export type AuthResponse = {
   user: AuthUser;
   accessToken: string;
+  refreshToken?: string;
 };
 
 type AuthResponseEnvelope = {
@@ -23,6 +24,7 @@ export async function registerWithEmail(payload: {
 }): Promise<AuthResponse> {
   const response = await apiRequest<AuthResponseEnvelope>('/auth/register', {
     method: 'POST',
+    headers: {'X-Auth-Refresh': 'true'},
     body: JSON.stringify(payload),
   });
 
@@ -35,6 +37,7 @@ export async function loginWithEmail(payload: {
 }): Promise<AuthResponse> {
   const response = await apiRequest<AuthResponseEnvelope>('/auth/login', {
     method: 'POST',
+    headers: {'X-Auth-Refresh': 'true'},
     body: JSON.stringify(payload),
   });
 
@@ -44,6 +47,14 @@ export async function loginWithEmail(payload: {
 export async function getAuthenticatedUser(): Promise<AuthUser> {
   const response = await apiRequest<MeResponseEnvelope>('/auth/me');
   return response.data.user;
+}
+
+export async function logoutCurrentSession(): Promise<void> {
+  await apiRequest<{data: {message?: string}}>('/auth/logout', {
+    method: 'POST',
+    body: JSON.stringify({}),
+    skipAuthRefresh: true,
+  });
 }
 
 type MessageEnvelope = {data: {message: string}};

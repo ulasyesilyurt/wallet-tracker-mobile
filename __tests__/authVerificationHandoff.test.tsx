@@ -5,13 +5,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   getAuthenticatedUser,
   loginWithEmail,
+  logoutCurrentSession,
   registerWithEmail,
   requestEmailVerificationCode,
   verifyEmailVerificationCode,
 } from '../src/api/auth';
 import {ApiError, apiRequest} from '../src/api/client';
 import {AuthProvider, useAuth} from '../src/auth/AuthContext';
-import {clearStoredAccessToken, getStoredAccessToken, storeAccessToken} from '../src/auth/authStorage';
+import {clearStoredAuthTokens, getStoredAccessToken, getStoredRefreshToken, storeAuthTokens} from '../src/auth/authStorage';
 import {getSessionAccessToken, setSessionAccessToken, setSessionUser} from '../src/auth/session';
 import {RootNavigator} from '../src/navigation/RootNavigator';
 import {VerificationCodeScreen} from '../src/screens/VerificationCodeScreen';
@@ -31,6 +32,7 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 jest.mock('../src/api/auth', () => ({
   getAuthenticatedUser: jest.fn(),
   loginWithEmail: jest.fn(),
+  logoutCurrentSession: jest.fn(),
   registerWithEmail: jest.fn(),
   requestEmailVerificationCode: jest.fn(),
   requestPasswordResetCode: jest.fn(),
@@ -39,8 +41,9 @@ jest.mock('../src/api/auth', () => ({
 }));
 jest.mock('../src/auth/authStorage', () => ({
   getStoredAccessToken: jest.fn(),
-  storeAccessToken: jest.fn(),
-  clearStoredAccessToken: jest.fn(),
+  getStoredRefreshToken: jest.fn(),
+  storeAuthTokens: jest.fn(),
+  clearStoredAuthTokens: jest.fn(),
 }));
 jest.mock('../src/navigation/AppNavigator', () => ({AppNavigator: jest.fn(() => null)}));
 
@@ -84,8 +87,10 @@ beforeEach(() => {
   setSessionAccessToken(null);
   setSessionUser(null);
   jest.mocked(getStoredAccessToken).mockResolvedValue(null);
-  jest.mocked(storeAccessToken).mockResolvedValue(undefined);
-  jest.mocked(clearStoredAccessToken).mockResolvedValue(undefined);
+  jest.mocked(getStoredRefreshToken).mockResolvedValue(null);
+  jest.mocked(storeAuthTokens).mockResolvedValue(undefined);
+  jest.mocked(clearStoredAuthTokens).mockResolvedValue(undefined);
+  jest.mocked(logoutCurrentSession).mockResolvedValue(undefined);
   jest.mocked(AsyncStorage.getItem).mockResolvedValue('true');
   jest.mocked(AsyncStorage.setItem).mockResolvedValue(undefined);
   const authUser = {
@@ -388,7 +393,7 @@ it('signs out locally to Welcome and ignores a late verification response', asyn
   await act(async () => { button(renderer, 'Sign out').props.onPress(); await Promise.resolve(); });
   expect(renderer.root.findByType(WelcomeScreen)).toBeTruthy();
   expect(getSessionAccessToken()).toBeNull();
-  expect(clearStoredAccessToken).toHaveBeenCalledTimes(1);
+  expect(clearStoredAuthTokens).toHaveBeenCalledTimes(1);
   await act(async () => {
     pending.resolve({
       id: 'new-user', email: 'new@example.com', emailVerified: true,
