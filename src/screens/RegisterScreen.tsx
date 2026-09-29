@@ -16,11 +16,12 @@ import {
 
 type RegisterScreenProps = {
   onShowLogin: () => void;
+  initialEmail?: string;
 };
 
-export function RegisterScreen({onShowLogin}: RegisterScreenProps) {
+export function RegisterScreen({onShowLogin, initialEmail = ''}: RegisterScreenProps) {
   const {register} = useAuth();
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [fieldErrors, setFieldErrors] = useState<AuthFieldErrors>({});

@@ -18,9 +18,10 @@ type LoginScreenProps = {
   onShowRegister: () => void;
   onForgotPassword: (email: string) => void;
   initialEmail?: string;
+  focusEmail?: boolean;
 };
 
-export function LoginScreen({onShowRegister, onForgotPassword, initialEmail = ''}: LoginScreenProps) {
+export function LoginScreen({onShowRegister, onForgotPassword, initialEmail = '', focusEmail = false}: LoginScreenProps) {
   const {login} = useAuth();
   const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState('');
@@ -30,6 +31,11 @@ export function LoginScreen({onShowRegister, onForgotPassword, initialEmail = ''
   const [focusPasswordAfterError, setFocusPasswordAfterError] = useState(false);
   const submittingRef = useRef(false);
   const passwordInputRef = useRef<TextInput>(null);
+  const emailInputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    if (focusEmail) emailInputRef.current?.focus();
+  }, [focusEmail]);
 
   useEffect(() => {
     if (focusPasswordAfterError && !submitting) {
@@ -86,6 +92,7 @@ export function LoginScreen({onShowRegister, onForgotPassword, initialEmail = ''
 
       <View style={styles.form}>
         <AuthTextField
+          ref={emailInputRef}
           label="Email"
           emailPreset
           error={fieldErrors.email}

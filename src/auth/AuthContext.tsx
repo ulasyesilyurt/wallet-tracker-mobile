@@ -17,6 +17,7 @@ import type {AuthUser} from '../types/auth';
 type AuthContextValue = {
   user: AuthUser | null;
   isInitializing: boolean;
+  verificationEntryMode: 'register' | 'signin' | null;
   login: (payload: {email: string; password: string}) => Promise<void>;
   register: (payload: {
     email: string;
@@ -48,7 +49,9 @@ async function applyAuthenticatedSession(accessToken: string, authUser?: AuthUse
 export function AuthProvider({children}: {children: React.ReactNode}) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
+  const [verificationEntryMode, setVerificationEntryMode] = useState<'register' | 'signin' | null>(null);
   const initialVerificationCodeRequestUserId = useRef<string | null>(null);
+  const sessionEpoch = useRef(0);
 
   useEffect(() => subscribeToEmailVerificationRequired(() => {
     const sessionUser = getSessionUser();
@@ -108,16 +111,19 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
     () => ({
       user,
       isInitializing,
+      verificationEntryMode,
       async login(payload) {
         const response = await loginWithEmail(payload);
         const nextUser = await applyAuthenticatedSession(response.accessToken, response.user);
         initialVerificationCodeRequestUserId.current = nextUser.emailVerified !== true ? nextUser.id : null;
+        setVerificationEntryMode(nextUser.emailVerified !== true ? 'signin' : null);
         setUser(nextUser);
       },
       async register(payload) {
         const response = await registerWithEmail(payload);
         const nextUser = await applyAuthenticatedSession(response.accessToken, response.user);
         initialVerificationCodeRequestUserId.current = nextUser.emailVerified !== true ? nextUser.id : null;
+        setVerificationEntryMode(nextUser.emailVerified !== true ? 'register' : null);
         setUser(nextUser);
       },
       consumeInitialVerificationCodeRequest(userId) {
@@ -126,20 +132,28 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
         return true;
       },
       async verifyEmail(code) {
+        const epoch = sessionEpoch.current;
         const verifiedUser = await verifyEmailVerificationCode(code);
+        if (epoch !== sessionEpoch.current) return;
+        if (verifiedUser.emailVerified !== true) {
+          throw new Error('Could not confirm email verification. Try again.');
+        }
         initialVerificationCodeRequestUserId.current = null;
+        setVerificationEntryMode(null);
         setSessionUser(verifiedUser);
         setUser(verifiedUser);
       },
       async logout() {
+        sessionEpoch.current += 1;
         initialVerificationCodeRequestUserId.current = null;
-        await clearStoredAccessToken();
+        setVerificationEntryMode(null);
         setSessionAccessToken(null);
         setSessionUser(null);
         setUser(null);
+        await clearStoredAccessToken();
       },
     }),
-    [isInitializing, user],
+    [isInitializing, user, verificationEntryMode],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

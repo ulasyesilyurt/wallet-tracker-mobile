@@ -1,13 +1,14 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextInput, View} from 'react-native';
+import {ActivityIndicator, BackHandler, Platform, Pressable, StyleSheet, Text, TextInput, View} from 'react-native';
 import {requestEmailVerificationCode, requestPasswordResetCode} from '../api/auth';
-import {ApiError} from '../api/client';
 import {useAuth} from '../auth/AuthContext';
-import {AuthFormLayout, AuthHeader, AuthRequestError} from '../components/AuthUI';
+import {classifyAuthError, type AuthErrorKind} from '../auth/authErrors';
+import {verificationModes, type VerificationMode} from '../auth/verificationModes';
+import {AuthHeader, AuthNotice, AuthScaffold, AuthTextLink} from '../components/AuthUI';
 import {authColors} from '../theme/auth';
 
 type Props = {
-  mode: 'email' | 'reset';
+  mode: VerificationMode;
   email: string;
   initialError?: string | null;
   initialCooldownEndsAt?: number | null;
@@ -16,12 +17,15 @@ type Props = {
   onCodeEntered?: (code: string) => void;
   onVerified?: () => void;
   shouldRequestInitialCode?: () => boolean;
+  onSignOut?: () => void;
+  onChangeEmail?: () => void;
 };
 
 const RESEND_SECONDS = 60;
 
-export function VerificationCodeScreen({mode, email, initialError, initialCooldownEndsAt, onBack, onCodeRequested, onCodeEntered, onVerified, shouldRequestInitialCode}: Props) {
+export function VerificationCodeScreen({mode, email, initialError, initialCooldownEndsAt, onBack, onCodeRequested, onCodeEntered, onVerified, shouldRequestInitialCode, onSignOut, onChangeEmail}: Props) {
   const {verifyEmail} = useAuth();
+  const modeCopy = verificationModes[mode];
   const inputRef = useRef<TextInput>(null);
   const requestInFlight = useRef(false);
   const verifyInFlight = useRef(false);
@@ -35,6 +39,7 @@ export function VerificationCodeScreen({mode, email, initialError, initialCooldo
   const [focusWhenEditable, setFocusWhenEditable] = useState(false);
   const [codeError, setCodeError] = useState<string | null>(initialError ?? null);
   const [requestError, setRequestError] = useState<string | null>(null);
+  const [requestErrorKind, setRequestErrorKind] = useState<AuthErrorKind | null>(null);
   const [codeRequested, setCodeRequested] = useState(mode === 'reset');
   const [cooldownEndsAt, setCooldownEndsAt] = useState<number | null>(
     mode === 'reset' ? initialCooldownEndsAt ?? Date.now() + RESEND_SECONDS * 1000 : null,
@@ -48,8 +53,9 @@ export function VerificationCodeScreen({mode, email, initialError, initialCooldo
     requestInFlight.current = true;
     setRequesting(true);
     setRequestError(null);
+    setRequestErrorKind(null);
     try {
-      if (mode === 'email') {
+      if (mode !== 'reset') {
         await requestEmailVerificationCode();
       } else {
         await requestPasswordResetCode(email);
@@ -66,8 +72,13 @@ export function VerificationCodeScreen({mode, email, initialError, initialCooldo
       setFocusWhenEditable(true);
     } catch (error) {
       if (!mounted.current) return;
-      setRequestError(error instanceof Error ? error.message : 'Could not send a code. Try again.');
-      if (error instanceof ApiError && error.code === 'AUTH_CODE_REQUEST_LIMITED') {
+      const kind = classifyAuthError(error);
+      setRequestErrorKind(kind);
+      setRequestError(kind === 'verificationRequestLimited' ? 'Too many code requests. Try again in a minute.' :
+        kind === 'rateLimited' ? 'Too many requests. Try again in a minute.' :
+        kind === 'networkFailure' ? 'Could not send a code. Check your connection and try again.' :
+        'Could not send a code. Try again.');
+      if (kind === 'verificationRequestLimited' || kind === 'rateLimited') {
         setCooldownEndsAt(Date.now() + RESEND_SECONDS * 1000);
         setSecondsLeft(RESEND_SECONDS);
       }
@@ -83,12 +94,21 @@ export function VerificationCodeScreen({mode, email, initialError, initialCooldo
   }, []);
 
   useEffect(() => {
-    if (mode === 'email' && !requestedOnMount.current) {
-      requestedOnMount.current = true;
+    if (requestedOnMount.current) return;
+    requestedOnMount.current = true;
+    if (modeCopy.allowsInitialCodeRequest) {
       if (shouldRequestInitialCode?.()) sendCode();
       else setFocusWhenEditable(true);
+    } else if (mode === 'restored') {
+      setFocusWhenEditable(true);
     }
-  }, [mode, sendCode, shouldRequestInitialCode]);
+  }, [mode, modeCopy.allowsInitialCodeRequest, sendCode, shouldRequestInitialCode]);
+
+  useEffect(() => {
+    if (modeCopy.showsBack) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => true);
+    return () => subscription.remove();
+  }, [modeCopy.showsBack]);
 
   useEffect(() => {
     if (focusWhenEditable && !requesting && !verifying) {
@@ -115,22 +135,29 @@ export function VerificationCodeScreen({mode, email, initialError, initialCooldo
     verifyInFlight.current = true;
     setVerifying(true);
     setRequestError(null);
+    setRequestErrorKind(null);
     try {
       await verifyEmail(nextCode);
+      if (!mounted.current) return;
       onVerified?.();
     } catch (error) {
-      if (error instanceof ApiError && error.code === 'AUTH_INVALID_CODE') {
-        setCodeError('That code didn’t match or has expired. Try again or resend.');
+      if (!mounted.current) return;
+      const kind = classifyAuthError(error);
+      if (kind === 'invalidCode') {
+        setCodeError('That code didn’t match. Try again or resend.');
         setCode('');
         lastSubmitted.current = '';
       } else {
-        setRequestError(error instanceof Error ? error.message : 'Could not verify the code. Try again.');
+        setRequestErrorKind(kind);
+        setRequestError(kind === 'networkFailure' ? 'Could not verify the code. Check your connection and try again.' :
+          kind === 'rateLimited' || kind === 'verificationRequestLimited' ? 'Too many attempts. Please wait before trying again.' :
+          'Could not verify the code. Try again.');
         lastSubmitted.current = '';
       }
       setFocusWhenEditable(true);
     } finally {
       verifyInFlight.current = false;
-      setVerifying(false);
+      if (mounted.current) setVerifying(false);
     }
   }
 
@@ -140,6 +167,7 @@ export function VerificationCodeScreen({mode, email, initialError, initialCooldo
     setCode(nextCode);
     setCodeError(null);
     setRequestError(null);
+    setRequestErrorKind(null);
     if (nextCode.length === 6 && nextCode !== lastSubmitted.current) {
       lastSubmitted.current = nextCode;
       checkCode(nextCode);
@@ -150,23 +178,26 @@ export function VerificationCodeScreen({mode, email, initialError, initialCooldo
   const busy = requesting || verifying;
 
   return (
-    <AuthFormLayout>
+    <AuthScaffold
+      testID="verification"
+      navLeading={modeCopy.showsBack ? 'back' : 'none'}
+      onBack={modeCopy.showsBack ? () => { if (!verifying) onBack?.(); } : undefined}
+      backDisabled={verifying}
+      navTrailing={modeCopy.showsSignOut && onSignOut ? {label: 'Sign out', onPress: onSignOut} : undefined}
+      topSpacing={20}>
       <AuthHeader
-        title="Check your email"
-        subtitle={mode === 'reset'
-          ? 'If an account exists for this email, a 6-digit code is on its way.'
-          : codeRequested ? 'Enter the 6-digit code we sent to' : 'Enter your 6-digit code for'}
-        onBack={mode === 'reset' ? () => { if (!verifying) onBack?.(); } : undefined}
-        backLabel="Back to email"
+        title={modeCopy.title}
+        subtitle={modeCopy.subtitle}
+        showNavigationRow={false}
         hideBrand
       />
       <View style={styles.emailRow}>
         <Text style={styles.email} numberOfLines={1}>{email}</Text>
-        {mode === 'reset' ? (
-          <Pressable accessibilityRole="button" accessibilityLabel="Change email" disabled={busy} onPress={onBack} style={styles.changeButton}>
-            <Text style={styles.link}>Change</Text>
-          </Pressable>
-        ) : null}
+        <AuthTextLink
+          label={mode === 'reset' ? 'Change email' : modeCopy.emailActionLabel}
+          disabled={busy}
+          onPress={mode === 'reset' ? () => onBack?.() : () => onChangeEmail?.()}
+        />
       </View>
 
       <View style={styles.codeArea}>
@@ -208,25 +239,24 @@ export function VerificationCodeScreen({mode, email, initialError, initialCooldo
         ) : secondsLeft > 0 ? (
           <Text style={styles.muted}>Resend code in {countdown}</Text>
         ) : (
-          <Pressable accessibilityRole="button" accessibilityLabel="Resend code" disabled={busy} onPress={() => { sendCode(); }} style={styles.resendButton}>
-            <Text style={styles.muted}>Didn’t get it? <Text style={styles.link}>Resend code</Text></Text>
-          </Pressable>
+          <View style={styles.resendRow}>
+            {codeRequested ? <Text style={styles.resendPrompt}>Didn’t get it?</Text> : null}
+            <AuthTextLink label={codeRequested ? 'Resend code' : 'Send code'} disabled={busy} onPress={() => { sendCode(); }} />
+          </View>
         )}
-        {requestError ? <View style={styles.requestNotice}><AuthRequestError message={requestError} /></View> : null}
+        {requestError ? <View style={styles.requestNotice}><AuthNotice tone={requestErrorKind === 'verificationRequestLimited' || requestErrorKind === 'rateLimited' ? 'warning' : 'error'} message={requestError} /></View> : null}
       </View>
 
       <View style={styles.secondaryArea}>
         <Text style={styles.hint}>Not there? Check spam or promotions.</Text>
       </View>
-    </AuthFormLayout>
+    </AuthScaffold>
   );
 }
 
 const styles = StyleSheet.create({
   emailRow: {flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 2},
   email: {color: authColors.text, fontSize: 14, fontWeight: '700'},
-  changeButton: {minHeight: 44, justifyContent: 'center', paddingHorizontal: 2},
-  link: {color: authColors.focus, fontSize: 13.5, fontWeight: '700'},
   codeArea: {marginTop: 28},
   cells: {height: 56, flexDirection: 'row', gap: 8, position: 'relative'},
   cell: {flex: 1, maxWidth: 48, height: 56, borderRadius: 12, borderWidth: 1, borderColor: authColors.line, backgroundColor: authColors.surface, alignItems: 'center', justifyContent: 'center'},
@@ -238,9 +268,10 @@ const styles = StyleSheet.create({
   hiddenInput: {position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, color: 'transparent'},
   codeError: {color: authColors.error, fontSize: 12, lineHeight: 18, marginTop: 12},
   muted: {color: authColors.textTertiary, fontSize: 13, marginTop: 14},
+  resendPrompt: {color: authColors.textTertiary, fontSize: 13},
   statusText: {color: authColors.textTertiary, fontSize: 13},
   statusRow: {flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12},
-  resendButton: {minHeight: 44, alignSelf: 'flex-start', justifyContent: 'center'},
+  resendRow: {flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4},
   requestNotice: {marginTop: 20},
   secondaryArea: {marginTop: 30},
   hint: {color: authColors.textTertiary, fontSize: 12, textAlign: 'center', marginTop: 14},

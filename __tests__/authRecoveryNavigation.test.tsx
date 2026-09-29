@@ -32,6 +32,7 @@ function setAuthState(overrides: Partial<ReturnType<typeof useAuth>> = {}) {
   auth.mockReturnValue({
     user: null,
     isInitializing: false,
+    verificationEntryMode: null,
     login: jest.fn(),
     register: jest.fn(),
     consumeInitialVerificationCodeRequest: jest.fn(() => false),
@@ -80,14 +81,14 @@ it('requires verification after new email registration and does not allow unknow
     user: unverifiedUser,
   });
   act(() => { renderer.update(<RootNavigator />); });
-  expect(renderer.root.findByType(VerificationCodeScreen).props.mode).toBe('email');
+  expect(renderer.root.findByType(VerificationCodeScreen).props.mode).toBe('restored');
   expect(renderer.root.findByType(VerificationCodeScreen).props.email).toBe('user@example.com');
   // A later auth-state render must not dismiss a screen that already requested a code.
   setAuthState({
     user: {id: 'user-1', email: 'user@example.com', createdAt: '2026-09-28', updatedAt: '2026-09-28'},
   });
   act(() => { renderer.update(<RootNavigator />); });
-  expect(renderer.root.findByType(VerificationCodeScreen).props.mode).toBe('email');
+  expect(renderer.root.findByType(VerificationCodeScreen).props.mode).toBe('restored');
   expect(renderer.root.findAllByType(AppNavigator)).toHaveLength(0);
   setAuthState({user: {...unverifiedUser, emailVerified: true}});
   act(() => { renderer.update(<RootNavigator />); });
@@ -116,7 +117,7 @@ it('requires verification after sign-in for an unverified account', async () => 
   const renderer = await renderRoot();
   setAuthState({user: unverifiedUser});
   act(() => { renderer.update(<RootNavigator />); });
-  expect(renderer.root.findByType(VerificationCodeScreen).props.mode).toBe('email');
+  expect(renderer.root.findByType(VerificationCodeScreen).props.mode).toBe('restored');
   expect(renderer.root.findAllByType(AppNavigator)).toHaveLength(0);
   act(() => renderer.unmount());
 });

@@ -1,5 +1,5 @@
 import React from 'react';
-import {AppState, NativeModules, TextInput} from 'react-native';
+import {AppState, NativeModules, Text, TextInput} from 'react-native';
 import TestRenderer, {act} from 'react-test-renderer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -11,11 +11,14 @@ import {
 } from '../src/api/auth';
 import {ApiError, apiRequest} from '../src/api/client';
 import {AuthProvider, useAuth} from '../src/auth/AuthContext';
-import {getStoredAccessToken, storeAccessToken} from '../src/auth/authStorage';
+import {clearStoredAccessToken, getStoredAccessToken, storeAccessToken} from '../src/auth/authStorage';
 import {getSessionAccessToken, setSessionAccessToken, setSessionUser} from '../src/auth/session';
 import {RootNavigator} from '../src/navigation/RootNavigator';
 import {VerificationCodeScreen} from '../src/screens/VerificationCodeScreen';
 import {AppNavigator} from '../src/navigation/AppNavigator';
+import {WelcomeScreen} from '../src/screens/WelcomeScreen';
+import {LoginScreen} from '../src/screens/LoginScreen';
+import {RegisterScreen} from '../src/screens/RegisterScreen';
 
 jest.mock('react-native-vector-icons/Ionicons', () => 'Icon');
 jest.mock('react-native-safe-area-context', () => ({
@@ -66,12 +69,23 @@ function input(renderer: TestRenderer.ReactTestRenderer, label: string) {
   return renderer.root.findAllByType(TextInput).find(node => node.props.accessibilityLabel === label)!;
 }
 
+function copy(renderer: TestRenderer.ReactTestRenderer) {
+  return renderer.root.findAllByType(Text).map(node => node.props.children).flat().join(' ');
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(done => { resolve = done; });
+  return {promise, resolve};
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
   setSessionAccessToken(null);
   setSessionUser(null);
   jest.mocked(getStoredAccessToken).mockResolvedValue(null);
   jest.mocked(storeAccessToken).mockResolvedValue(undefined);
+  jest.mocked(clearStoredAccessToken).mockResolvedValue(undefined);
   jest.mocked(AsyncStorage.getItem).mockResolvedValue('true');
   jest.mocked(AsyncStorage.setItem).mockResolvedValue(undefined);
   const authUser = {
@@ -129,6 +143,11 @@ async function restoreUnverifiedUser() {
 it('keeps verification visible after the 202 code request without any skip control', async () => {
   const renderer = await registerUser();
   expect(requestCode).toHaveBeenCalledTimes(1);
+  expect(renderer.root.findByType(VerificationCodeScreen).props.mode).toBe('register');
+  expect(copy(renderer)).toContain('Enter the 6-digit code we sent to');
+  expect(button(renderer, 'Wrong email?')).toBeTruthy();
+  expect(button(renderer, 'Sign out')).toBeTruthy();
+  expect(button(renderer, 'Back')).toBeUndefined();
   expect(renderer.root.findByType(VerificationCodeScreen)).toBeTruthy();
   expect(renderer.root.findAllByType(AppNavigator)).toHaveLength(0);
   expect(verifyCode).not.toHaveBeenCalled();
@@ -184,6 +203,9 @@ it('keeps verification visible after an unverified interactive sign-in', async (
     await Promise.resolve();
   });
   expect(requestCode).toHaveBeenCalledTimes(1);
+  expect(renderer.root.findByType(VerificationCodeScreen).props.mode).toBe('signin');
+  expect(copy(renderer)).toContain('Your account isn’t verified yet. We just sent a code to');
+  expect(button(renderer, 'Not you?')).toBeTruthy();
   expect(renderer.root.findByType(VerificationCodeScreen)).toBeTruthy();
   expect(renderer.root.findAllByType(AppNavigator)).toHaveLength(0);
   expect(button(renderer, 'Continue to app')).toBeUndefined();
@@ -194,6 +216,10 @@ it('keeps verification visible after an unverified interactive sign-in', async (
   });
   expect(login).toHaveBeenCalledTimes(1);
   expect(requestCode).toHaveBeenCalledTimes(1);
+  await act(async () => { button(renderer, 'Not you?').props.onPress(); await Promise.resolve(); });
+  expect(renderer.root.findByType(LoginScreen)).toBeTruthy();
+  expect(input(renderer, 'Email').props.value).toBe('');
+  expect(input(renderer, 'Password').props.value).toBe('');
   act(() => renderer.unmount());
 });
 
@@ -220,6 +246,9 @@ it('never automatically requests a code on restored re-render or background-to-a
     });
 
     expect(renderer.root.findByType(VerificationCodeScreen)).toBeTruthy();
+    expect(renderer.root.findByType(VerificationCodeScreen).props.mode).toBe('restored');
+    expect(copy(renderer)).toContain('Enter the latest code we sent to');
+    expect(button(renderer, 'Not you?')).toBeTruthy();
     expect(requestCode).not.toHaveBeenCalled();
   } finally {
     if (renderer) act(() => renderer.unmount());
@@ -251,7 +280,7 @@ it('requires verification after restoration of an existing unverified session', 
   expect(renderer.root.findAllByType(AppNavigator)).toHaveLength(0);
   expect(requestCode).not.toHaveBeenCalled();
   expect(input(renderer, '6-digit verification code').props.editable).toBe(true);
-  expect(button(renderer, 'Resend code')).toBeTruthy();
+  expect(button(renderer, 'Send code')).toBeTruthy();
   act(() => renderer.unmount());
 });
 
@@ -274,7 +303,7 @@ it('allows explicit resend after restoring an unverified session', async () => {
   const renderer = await restoreUnverifiedUser();
   expect(requestCode).not.toHaveBeenCalled();
 
-  await act(async () => { button(renderer, 'Resend code').props.onPress(); await Promise.resolve(); });
+  await act(async () => { button(renderer, 'Send code').props.onPress(); await Promise.resolve(); });
   expect(requestCode).toHaveBeenCalledTimes(1);
   expect(button(renderer, 'Resend code')).toBeUndefined();
   expect(renderer.root.findByType(VerificationCodeScreen)).toBeTruthy();
@@ -346,5 +375,73 @@ it('recovers from a protected-route verification 403 without discarding the toke
   });
   expect(currentUser).toBe(unverifiedUser);
   expect(requestCode).not.toHaveBeenCalled();
+  act(() => renderer.unmount());
+});
+
+it('signs out locally to Welcome and ignores a late verification response', async () => {
+  const renderer = await registerUser();
+  const pending = deferred<Awaited<ReturnType<typeof verifyEmailVerificationCode>>>();
+  verifyCode.mockReturnValueOnce(pending.promise);
+  act(() => { input(renderer, '6-digit verification code').props.onChangeText('123456'); });
+  expect(renderer.root.findAllByType(AppNavigator)).toHaveLength(0);
+
+  await act(async () => { button(renderer, 'Sign out').props.onPress(); await Promise.resolve(); });
+  expect(renderer.root.findByType(WelcomeScreen)).toBeTruthy();
+  expect(getSessionAccessToken()).toBeNull();
+  expect(clearStoredAccessToken).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    pending.resolve({
+      id: 'new-user', email: 'new@example.com', emailVerified: true,
+      createdAt: '2026-09-28', updatedAt: '2026-09-28',
+    });
+    await pending.promise;
+  });
+  expect(renderer.root.findByType(WelcomeScreen)).toBeTruthy();
+  expect(renderer.root.findAllByType(AppNavigator)).toHaveLength(0);
+  act(() => renderer.unmount());
+});
+
+it('returns Wrong email? to registration with only the email prefilled', async () => {
+  const renderer = await registerUser();
+  await act(async () => { button(renderer, 'Wrong email?').props.onPress(); await Promise.resolve(); });
+  expect(renderer.root.findByType(RegisterScreen)).toBeTruthy();
+  expect(input(renderer, 'Email').props.value).toBe('new@example.com');
+  expect(input(renderer, 'Password').props.value).toBe('');
+  expect(getSessionAccessToken()).toBeNull();
+  expect(requestCode).toHaveBeenCalledTimes(1);
+  act(() => renderer.unmount());
+});
+
+it('returns Not you? to an empty Sign In form', async () => {
+  const renderer = await restoreUnverifiedUser();
+  await act(async () => { button(renderer, 'Not you?').props.onPress(); await Promise.resolve(); });
+  expect(renderer.root.findByType(LoginScreen)).toBeTruthy();
+  expect(input(renderer, 'Email').props.value).toBe('');
+  expect(input(renderer, 'Password').props.value).toBe('');
+  expect(getSessionAccessToken()).toBeNull();
+  act(() => renderer.unmount());
+});
+
+it('ignores a late initial code request after local sign-out', async () => {
+  const pending = deferred<void>();
+  requestCode.mockReturnValueOnce(pending.promise);
+  const renderer = await registerUser();
+  expect(requestCode).toHaveBeenCalledTimes(1);
+  await act(async () => { button(renderer, 'Sign out').props.onPress(); await Promise.resolve(); });
+  await act(async () => { pending.resolve(); await pending.promise; });
+  expect(renderer.root.findByType(WelcomeScreen)).toBeTruthy();
+  expect(renderer.root.findAllByType(AppNavigator)).toHaveLength(0);
+  act(() => renderer.unmount());
+});
+
+it('does not enter the app when the verify endpoint returns an unverified user', async () => {
+  const renderer = await registerUser();
+  verifyCode.mockResolvedValueOnce({
+    id: 'new-user', email: 'new@example.com', emailVerified: false,
+    createdAt: '2026-09-28', updatedAt: '2026-09-28',
+  });
+  await act(async () => { input(renderer, '6-digit verification code').props.onChangeText('123456'); });
+  expect(renderer.root.findByType(VerificationCodeScreen)).toBeTruthy();
+  expect(renderer.root.findAllByType(AppNavigator)).toHaveLength(0);
   act(() => renderer.unmount());
 });

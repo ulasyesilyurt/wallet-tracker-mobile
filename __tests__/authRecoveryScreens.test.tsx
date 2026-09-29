@@ -1,5 +1,5 @@
 import React from 'react';
-import {Text, TextInput} from 'react-native';
+import {BackHandler, Text, TextInput} from 'react-native';
 import TestRenderer, {act} from 'react-test-renderer';
 import {ApiError} from '../src/api/client';
 import {useAuth} from '../src/auth/AuthContext';
@@ -84,18 +84,64 @@ it('validates forgot email and advances on the neutral backend success without a
 
 it('accepts pasted six digits once and carries them to the reset form without claiming verification', async () => {
   const onCodeEntered = jest.fn();
+  const onBack = jest.fn();
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => { renderer = TestRenderer.create(
-    <VerificationCodeScreen mode="reset" email="unknown@example.com" onBack={jest.fn()} onCodeEntered={onCodeEntered} />,
+    <VerificationCodeScreen mode="reset" email="unknown@example.com" onBack={onBack} onCodeEntered={onCodeEntered} />,
   ); });
   expect(requestReset).not.toHaveBeenCalled();
   expect(copy(renderer)).toContain('If an account exists');
+  expect(button(renderer, 'Sign out')).toBeUndefined();
+  act(() => { button(renderer, 'Back').props.onPress(); });
+  expect(onBack).toHaveBeenCalledTimes(1);
   const codeInput = input(renderer, '6-digit verification code');
   expect(codeInput.props.textContentType).toBe('oneTimeCode');
   act(() => { codeInput.props.onChangeText('12 34x56'); });
   act(() => { codeInput.props.onChangeText('123456'); });
   expect(onCodeEntered).toHaveBeenCalledTimes(1);
   expect(onCodeEntered).toHaveBeenCalledWith('123456');
+  act(() => renderer.unmount());
+});
+
+it('shows request-limited and rate-limited resend states with the local 60-second fallback', async () => {
+  jest.useFakeTimers();
+  jest.setSystemTime(new Date('2026-09-28T10:00:00Z'));
+  let renderer!: TestRenderer.ReactTestRenderer;
+  try {
+    requestVerification.mockRejectedValueOnce(new ApiError(429, 'Limited.', 'AUTH_CODE_REQUEST_LIMITED'));
+    await act(async () => { renderer = TestRenderer.create(
+      <VerificationCodeScreen mode="restored" email="user@example.com" />,
+    ); });
+    expect(requestVerification).not.toHaveBeenCalled();
+    await act(async () => { button(renderer, 'Send code').props.onPress(); await Promise.resolve(); });
+    expect(copy(renderer)).toContain('Too many code requests. Try again in a minute.');
+    expect(copy(renderer)).toMatch(/Resend code in\s+1:00/);
+
+    act(() => { jest.advanceTimersByTime(61_000); });
+    requestVerification.mockRejectedValueOnce(new ApiError(429, 'Slow down.'));
+    await act(async () => { button(renderer, 'Send code').props.onPress(); await Promise.resolve(); });
+    expect(copy(renderer)).toContain('Too many requests. Try again in a minute.');
+    expect(copy(renderer)).toMatch(/Resend code in\s+1:00/);
+  } finally {
+    act(() => renderer.unmount());
+    jest.useRealTimers();
+  }
+});
+
+it('shows network and server request failures without inventing a cooldown', async () => {
+  requestVerification.mockRejectedValueOnce(new TypeError('Network request failed'));
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => { renderer = TestRenderer.create(
+    <VerificationCodeScreen mode="restored" email="user@example.com" />,
+  ); });
+  await act(async () => { button(renderer, 'Send code').props.onPress(); await Promise.resolve(); });
+  expect(copy(renderer)).toContain('Check your connection and try again.');
+  expect(button(renderer, 'Send code')).toBeTruthy();
+
+  requestVerification.mockRejectedValueOnce(new ApiError(500, 'Internal error.'));
+  await act(async () => { button(renderer, 'Send code').props.onPress(); await Promise.resolve(); });
+  expect(copy(renderer)).toContain('Could not send a code. Try again.');
+  expect(button(renderer, 'Send code')).toBeTruthy();
   act(() => renderer.unmount());
 });
 
@@ -126,19 +172,32 @@ it('requests email verification once, clears invalid codes, and submits the next
   const onVerified = jest.fn();
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => { renderer = TestRenderer.create(
-    <VerificationCodeScreen mode="email" email="user@example.com" onBack={jest.fn()} onVerified={onVerified} shouldRequestInitialCode={() => true} />,
+    <VerificationCodeScreen mode="register" email="user@example.com" onBack={jest.fn()} onVerified={onVerified} shouldRequestInitialCode={() => true} />,
   ); });
   expect(requestVerification).toHaveBeenCalledTimes(1);
 
   await act(async () => { input(renderer, '6-digit verification code').props.onChangeText('111111'); });
   expect(verifyEmail).toHaveBeenCalledWith('111111');
   expect(input(renderer, '6-digit verification code').props.value).toBe('');
-  expect(copy(renderer)).toContain('That code didn’t match or has expired.');
+  expect(copy(renderer)).toContain('That code didn’t match.');
   expect(onVerified).not.toHaveBeenCalled();
 
   await act(async () => { input(renderer, '6-digit verification code').props.onChangeText('222222'); });
   expect(verifyEmail).toHaveBeenCalledTimes(2);
   expect(onVerified).toHaveBeenCalledTimes(1);
+  act(() => renderer.unmount());
+});
+
+it('keeps verification open on a rate-limited verify response', async () => {
+  verifyEmail.mockRejectedValueOnce(new ApiError(429, 'Slow down.'));
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => { renderer = TestRenderer.create(
+    <VerificationCodeScreen mode="restored" email="user@example.com" />,
+  ); });
+  await act(async () => { input(renderer, '6-digit verification code').props.onChangeText('123456'); });
+  expect(copy(renderer)).toContain('Too many attempts. Please wait before trying again.');
+  expect(input(renderer, '6-digit verification code').props.editable).toBe(true);
+  expect(requestVerification).not.toHaveBeenCalled();
   act(() => renderer.unmount());
 });
 
@@ -148,7 +207,7 @@ it('focuses the email code input only after it becomes editable and lets code-ce
   mockFocusedWhileEditable.length = 0;
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
-    renderer = TestRenderer.create(<VerificationCodeScreen mode="email" email="user@example.com" onBack={jest.fn()} shouldRequestInitialCode={() => true} />);
+    renderer = TestRenderer.create(<VerificationCodeScreen mode="register" email="user@example.com" onBack={jest.fn()} shouldRequestInitialCode={() => true} />);
   });
 
   expect(requestVerification).toHaveBeenCalledTimes(1);
@@ -172,13 +231,13 @@ it('focuses an existing email code on mount without requesting another one', asy
   mockFocusedWhileEditable.length = 0;
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
-    renderer = TestRenderer.create(<VerificationCodeScreen mode="email" email="user@example.com" shouldRequestInitialCode={() => false} />);
+    renderer = TestRenderer.create(<VerificationCodeScreen mode="restored" email="user@example.com" shouldRequestInitialCode={() => false} />);
   });
 
   expect(requestVerification).not.toHaveBeenCalled();
   expect(input(renderer, '6-digit verification code').props.editable).toBe(true);
   expect(mockFocusedWhileEditable).toEqual([true]);
-  expect(button(renderer, 'Resend code')).toBeTruthy();
+  expect(button(renderer, 'Send code')).toBeTruthy();
   act(() => renderer.unmount());
 });
 
@@ -188,13 +247,33 @@ it('offers no verification bypass while the initial email request is pending', a
   const onBack = jest.fn();
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => { renderer = TestRenderer.create(
-    <VerificationCodeScreen mode="email" email="user@example.com" onBack={onBack} shouldRequestInitialCode={() => true} />,
+    <VerificationCodeScreen mode="register" email="user@example.com" onBack={onBack} shouldRequestInitialCode={() => true} />,
   ); });
   expect(button(renderer, 'Continue to app')).toBeUndefined();
   expect(onBack).not.toHaveBeenCalled();
   await act(async () => { resolveRequest(); await Promise.resolve(); });
   expect(button(renderer, 'Continue to app')).toBeUndefined();
   act(() => renderer.unmount());
+});
+
+it('consumes Android gate back without leaving verification', async () => {
+  let handleBack: (() => boolean | null | undefined) | undefined;
+  const addEventListener = jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_event, handler) => {
+    handleBack = handler;
+    return {remove: jest.fn()};
+  });
+  let renderer!: TestRenderer.ReactTestRenderer;
+  try {
+    await act(async () => { renderer = TestRenderer.create(
+      <VerificationCodeScreen mode="restored" email="user@example.com" onSignOut={jest.fn()} />,
+    ); });
+    expect(handleBack?.()).toBe(true);
+    expect(button(renderer, 'Back')).toBeUndefined();
+    expect(button(renderer, 'Sign out')).toBeTruthy();
+  } finally {
+    act(() => renderer.unmount());
+    addEventListener.mockRestore();
+  }
 });
 
 it('submits only an eight-character reset password and returns invalid codes for re-entry', async () => {

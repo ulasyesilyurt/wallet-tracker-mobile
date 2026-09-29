@@ -15,8 +15,11 @@ type AuthRoute = 'login' | 'register' | 'forgot' | 'resetCode' | 'newPassword';
 const WELCOME_SEEN_KEY = 'chainbell_welcome_seen';
 
 export function RootNavigator() {
-  const {user, isInitializing, consumeInitialVerificationCodeRequest} = useAuth();
+  const {user, isInitializing, verificationEntryMode, consumeInitialVerificationCodeRequest, logout} = useAuth();
   const [authRoute, setAuthRoute] = useState<AuthRoute>('login');
+  const [forceWelcome, setForceWelcome] = useState(false);
+  const [registrationEmail, setRegistrationEmail] = useState('');
+  const [focusLoginEmail, setFocusLoginEmail] = useState(false);
   const [hasSeenWelcome, setHasSeenWelcome] = useState<boolean | null>(null);
   const [authEmail, setAuthEmail] = useState('');
   const [resetCode, setResetCode] = useState('');
@@ -33,6 +36,8 @@ export function RootNavigator() {
       AsyncStorage.setItem(WELCOME_SEEN_KEY, 'true').catch(() => {});
       return;
     }
+
+    if (forceWelcome) return;
 
     let active = true;
 
@@ -51,11 +56,21 @@ export function RootNavigator() {
     return () => {
       active = false;
     };
-  }, [isInitializing, user]);
+  }, [forceWelcome, isInitializing, user]);
 
   function continueFromWelcome() {
+    setForceWelcome(false);
     setHasSeenWelcome(true);
     AsyncStorage.setItem(WELCOME_SEEN_KEY, 'true').catch(() => {});
+  }
+
+  function exitVerification(destination: 'welcome' | 'register' | 'login') {
+    setForceWelcome(destination === 'welcome');
+    setAuthRoute(destination === 'register' ? 'register' : 'login');
+    setAuthEmail('');
+    setRegistrationEmail(destination === 'register' ? user?.email ?? '' : '');
+    setFocusLoginEmail(destination === 'login');
+    logout().catch(() => {});
   }
 
   if (isInitializing || (!user && hasSeenWelcome === null)) {
@@ -67,12 +82,15 @@ export function RootNavigator() {
   }
 
   if (!user) {
-    if (!hasSeenWelcome) {
+    if (forceWelcome || !hasSeenWelcome) {
       return <WelcomeScreen onContinue={continueFromWelcome} />;
     }
 
     if (authRoute === 'register') {
-      return <RegisterScreen onShowLogin={() => setAuthRoute('login')} />;
+      return <RegisterScreen initialEmail={registrationEmail} onShowLogin={() => {
+        setRegistrationEmail('');
+        setAuthRoute('login');
+      }} />;
     }
 
     if (authRoute === 'forgot') {
@@ -122,16 +140,23 @@ export function RootNavigator() {
 
     return <LoginScreen
       initialEmail={authEmail}
-      onShowRegister={() => setAuthRoute('register')}
+      focusEmail={focusLoginEmail}
+      onShowRegister={() => {
+        setRegistrationEmail('');
+        setFocusLoginEmail(false);
+        setAuthRoute('register');
+      }}
       onForgotPassword={email => { setAuthEmail(email); setAuthRoute('forgot'); }}
     />;
   }
 
   if (user.emailVerified !== true) {
     return <VerificationCodeScreen
-      mode="email"
+      mode={verificationEntryMode ?? 'restored'}
       email={user.email}
       shouldRequestInitialCode={() => consumeInitialVerificationCodeRequest(user.id)}
+      onSignOut={() => exitVerification('welcome')}
+      onChangeEmail={() => exitVerification(verificationEntryMode === 'register' ? 'register' : 'login')}
     />;
   }
 
