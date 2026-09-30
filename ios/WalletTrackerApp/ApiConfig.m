@@ -20,7 +20,16 @@ RCT_EXPORT_MODULE(ApiConfig)
   BOOL isRelease = YES;
 #endif
   NSString *apiOrigin = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"APIBaseURL"] ?: @"";
-  return @{ @"apiOrigin": apiOrigin, @"isRelease": @(isRelease) };
+  NSString *googleWebClientId = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"GoogleWebClientID"] ?: @"";
+  NSString *googleIosClientId = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"GoogleIOSClientID"] ?: @"";
+  NSString *googleIosReversedClientId = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"GoogleIOSReversedClientID"] ?: @"";
+  return @{
+    @"apiOrigin": apiOrigin,
+    @"isRelease": @(isRelease),
+    @"googleWebClientId": googleWebClientId,
+    @"googleIosClientId": googleIosClientId,
+    @"googleIosReversedClientId": googleIosReversedClientId,
+  };
 }
 
 @end

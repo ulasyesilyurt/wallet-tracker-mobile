@@ -12,6 +12,7 @@ private class ApiConfigModule(context: ReactApplicationContext) : ReactContextBa
   override fun getConstants(): Map<String, Any> = mapOf(
     "apiOrigin" to BuildConfig.API_ORIGIN,
     "isRelease" to !BuildConfig.DEBUG,
+    "googleWebClientId" to BuildConfig.GOOGLE_WEB_CLIENT_ID,
   )
 }
 

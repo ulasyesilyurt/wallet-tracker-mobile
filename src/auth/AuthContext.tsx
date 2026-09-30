@@ -13,11 +13,16 @@ import {
 } from './authStorage';
 import {
   getAuthenticatedUser,
+  loginWithApple,
   loginWithEmail,
+  loginWithGoogle,
   logoutCurrentSession,
   registerWithEmail,
   verifyEmailVerificationCode,
 } from '../api/auth';
+import type {AuthResponse} from '../api/auth';
+import {requestAppleIdentity} from './appleProvider';
+import {requestGoogleIdentity} from './googleProvider';
 import {getSessionAccessToken, getSessionUser, setSessionAccessToken, setSessionUser} from './session';
 import type {AuthUser} from '../types/auth';
 
@@ -31,6 +36,8 @@ type AuthContextValue = {
     password: string;
     name?: string;
   }) => Promise<void>;
+  signInWithApple: () => Promise<{status: 'cancelled' | 'success'}>;
+  signInWithGoogle: () => Promise<{status: 'cancelled' | 'success'}>;
   consumeInitialVerificationCodeRequest: (userId: string) => boolean;
   verifyEmail: (code: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -145,6 +152,21 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
     };
   }, []);
 
+  async function completeInteractiveSession(
+    response: AuthResponse,
+    mode: 'register' | 'signin',
+    epoch: number,
+  ) {
+    const nextUser = await applyAuthenticatedSession(
+      response.accessToken, response.user, response.refreshToken ?? null,
+      () => epoch === sessionEpoch.current,
+    );
+    if (!nextUser) return;
+    initialVerificationCodeRequestUserId.current = nextUser.emailVerified !== true ? nextUser.id : null;
+    setVerificationEntryMode(nextUser.emailVerified !== true ? mode : null);
+    setUser(nextUser);
+  }
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
@@ -153,26 +175,28 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
       async login(payload) {
         const epoch = sessionEpoch.current;
         const response = await loginWithEmail(payload);
-        const nextUser = await applyAuthenticatedSession(
-          response.accessToken, response.user, response.refreshToken ?? null,
-          () => epoch === sessionEpoch.current,
-        );
-        if (!nextUser) return;
-        initialVerificationCodeRequestUserId.current = nextUser.emailVerified !== true ? nextUser.id : null;
-        setVerificationEntryMode(nextUser.emailVerified !== true ? 'signin' : null);
-        setUser(nextUser);
+        await completeInteractiveSession(response, 'signin', epoch);
       },
       async register(payload) {
         const epoch = sessionEpoch.current;
         const response = await registerWithEmail(payload);
-        const nextUser = await applyAuthenticatedSession(
-          response.accessToken, response.user, response.refreshToken ?? null,
-          () => epoch === sessionEpoch.current,
-        );
-        if (!nextUser) return;
-        initialVerificationCodeRequestUserId.current = nextUser.emailVerified !== true ? nextUser.id : null;
-        setVerificationEntryMode(nextUser.emailVerified !== true ? 'register' : null);
-        setUser(nextUser);
+        await completeInteractiveSession(response, 'register', epoch);
+      },
+      async signInWithApple() {
+        const epoch = sessionEpoch.current;
+        const providerResult = await requestAppleIdentity();
+        if (providerResult.status === 'cancelled') return {status: 'cancelled'};
+        const response = await loginWithApple(providerResult.credential);
+        await completeInteractiveSession(response, 'signin', epoch);
+        return {status: 'success'};
+      },
+      async signInWithGoogle() {
+        const epoch = sessionEpoch.current;
+        const providerResult = await requestGoogleIdentity();
+        if (providerResult.status === 'cancelled') return {status: 'cancelled'};
+        const response = await loginWithGoogle(providerResult.credential.idToken);
+        await completeInteractiveSession(response, 'signin', epoch);
+        return {status: 'success'};
       },
       consumeInitialVerificationCodeRequest(userId) {
         if (initialVerificationCodeRequestUserId.current !== userId) return false;

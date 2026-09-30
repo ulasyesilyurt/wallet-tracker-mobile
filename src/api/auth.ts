@@ -44,6 +44,29 @@ export async function loginWithEmail(payload: {
   return response.data;
 }
 
+export async function loginWithGoogle(idToken: string): Promise<AuthResponse> {
+  const response = await apiRequest<AuthResponseEnvelope>('/auth/google', {
+    method: 'POST',
+    headers: {'X-Auth-Refresh': 'true'},
+    body: JSON.stringify({idToken}),
+  });
+
+  return response.data;
+}
+
+export async function loginWithApple(payload: {
+  identityToken: string;
+  expectedNonce: string;
+}): Promise<AuthResponse> {
+  const response = await apiRequest<AuthResponseEnvelope>('/auth/apple', {
+    method: 'POST',
+    headers: {'X-Auth-Refresh': 'true'},
+    body: JSON.stringify(payload),
+  });
+
+  return response.data;
+}
+
 export async function getAuthenticatedUser(): Promise<AuthUser> {
   const response = await apiRequest<MeResponseEnvelope>('/auth/me');
   return response.data.user;

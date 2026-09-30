@@ -35,6 +35,8 @@ function setAuthState(overrides: Partial<ReturnType<typeof useAuth>> = {}) {
     verificationEntryMode: null,
     login: jest.fn(),
     register: jest.fn(),
+    signInWithApple: jest.fn(),
+    signInWithGoogle: jest.fn(),
     consumeInitialVerificationCodeRequest: jest.fn(() => false),
     verifyEmail: jest.fn(),
     logout: jest.fn(),

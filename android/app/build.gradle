@@ -12,6 +12,9 @@ def configuredApiOrigin = project.hasProperty("API_BASE_URL")
     : System.getenv("API_BASE_URL")
 def debugApiOrigin = configuredApiOrigin == null ? "http://10.0.2.2:3000" : configuredApiOrigin
 def releaseApiOrigin = configuredApiOrigin == null ? "" : configuredApiOrigin
+def googleWebClientId = project.hasProperty("GOOGLE_WEB_CLIENT_ID")
+    ? project.property("GOOGLE_WEB_CLIENT_ID")?.toString()
+    : System.getenv("GOOGLE_WEB_CLIENT_ID")
 def uploadSigningValue = { name ->
     def value = project.hasProperty(name) ? project.property(name) : System.getenv(name)
     return value == null ? "" : value.toString()
@@ -126,11 +129,13 @@ android {
         debug {
             signingConfig signingConfigs.debug
             buildConfigField "String", "API_ORIGIN", JsonOutput.toJson(debugApiOrigin)
+            buildConfigField "String", "GOOGLE_WEB_CLIENT_ID", JsonOutput.toJson(googleWebClientId ?: "")
             manifestPlaceholders = [usesCleartextTraffic: "true"]
         }
         release {
             signingConfig signingConfigs.upload
             buildConfigField "String", "API_ORIGIN", JsonOutput.toJson(releaseApiOrigin)
+            buildConfigField "String", "GOOGLE_WEB_CLIENT_ID", JsonOutput.toJson(googleWebClientId ?: "")
             manifestPlaceholders = [usesCleartextTraffic: "false"]
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
