@@ -6,6 +6,7 @@ import {useAuth} from '../src/auth/AuthContext';
 import {RootNavigator} from '../src/navigation/RootNavigator';
 import {WelcomeScreen} from '../src/screens/WelcomeScreen';
 import {LoginScreen} from '../src/screens/LoginScreen';
+import {RegisterScreen} from '../src/screens/RegisterScreen';
 import {AppNavigator} from '../src/navigation/AppNavigator';
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
@@ -51,8 +52,8 @@ it('shows the branded welcome once, then continues to the existing login flow', 
   expect(copy).toContain('Follow any address and get instant alerts');
   expect(copy).toContain('Main received 1.25 ETH');
   expect(copy).toContain('Already have an account?');
-  expect(copy).not.toMatch(/Continue with Apple|Continue with Google/);
-  const logos = renderer.root.findAllByType(Image);
+  expect(copy).toContain('Continue with Google');
+  const logos = renderer.root.findAllByType(Image).filter(node => node.props.accessibilityLabel === 'ChainBell logo');
   expect(logos).toHaveLength(1);
   expect(logos[0].props.accessibilityLabel).toBe('ChainBell logo');
   const contentStyle = StyleSheet.flatten(
@@ -75,6 +76,14 @@ it('uses the existing welcome marker and sign-in destination for the footer acti
     renderer.root.findByProps({accessibilityLabel: 'Already have an account? Sign in'}).props.onPress();
   });
   expect(renderer.root.findByType(LoginScreen)).toBeTruthy();
+  expect(setItem).toHaveBeenCalledWith('chainbell_welcome_seen', 'true');
+  act(() => renderer.unmount());
+});
+
+it('offers a direct, email-less registration destination from Welcome', async () => {
+  const renderer = await renderRoot();
+  await act(async () => { renderer.root.findByType(WelcomeScreen).props.onShowRegister(); });
+  expect(renderer.root.findByType(RegisterScreen).props.initialEmail).toBe('');
   expect(setItem).toHaveBeenCalledWith('chainbell_welcome_seen', 'true');
   act(() => renderer.unmount());
 });

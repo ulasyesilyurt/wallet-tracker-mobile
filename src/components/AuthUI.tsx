@@ -367,6 +367,16 @@ export function SecondaryAuthButton({
   );
 }
 
+export function AuthOrDivider() {
+  return (
+    <View style={styles.orDivider}>
+      <View style={styles.orDividerLine} accessible={false} importantForAccessibility="no" />
+      <Text style={styles.orDividerText}>or continue with email</Text>
+      <View style={styles.orDividerLine} accessible={false} importantForAccessibility="no" />
+    </View>
+  );
+}
+
 type AuthNoticeProps = {
   tone: 'error' | 'warning' | 'neutral';
   message: string;
@@ -503,6 +513,9 @@ const styles = StyleSheet.create({
   secondaryButtonPressed: {backgroundColor: 'rgba(255,255,255,0.04)'},
   secondaryButtonText: {color: authColors.text, fontSize: 15, fontWeight: '700'},
   secondaryButtonTextDisabled: {color: authColors.textDisabled},
+  orDivider: {minHeight: 20, flexDirection: 'row', alignItems: 'center', gap: 12},
+  orDividerLine: {flex: 1, height: 1, backgroundColor: authColors.lineHairline},
+  orDividerText: {color: authColors.textTertiary, fontSize: 12, fontWeight: '600'},
   notice: {borderWidth: 1, borderRadius: 10, paddingVertical: 11, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 10},
   noticeError: {backgroundColor: 'rgba(255,92,102,0.08)', borderColor: 'rgba(255,92,102,0.22)'},
   noticeWarning: {backgroundColor: 'rgba(242,169,59,0.08)', borderColor: 'rgba(242,169,59,0.24)'},

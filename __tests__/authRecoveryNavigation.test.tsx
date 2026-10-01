@@ -75,6 +75,17 @@ it('carries email from sign-in through neutral recovery, code entry, and back to
   act(() => renderer.unmount());
 });
 
+it('does not carry an unrelated recovery email through Register sign-in navigation', async () => {
+  const renderer = await renderRoot();
+  act(() => { renderer.root.findByType(LoginScreen).props.onForgotPassword('old@example.com'); });
+  act(() => { renderer.root.findByType(ForgotPasswordScreen).props.onBack('old@example.com'); });
+  expect(renderer.root.findByType(LoginScreen).props.initialEmail).toBe('old@example.com');
+  act(() => { renderer.root.findByType(LoginScreen).props.onShowRegister(); });
+  act(() => { renderer.root.findByType(RegisterScreen).props.onShowLogin(); });
+  expect(renderer.root.findByType(LoginScreen).props.initialEmail).toBe('');
+  act(() => renderer.unmount());
+});
+
 it('requires verification after new email registration and does not allow unknown status into the app', async () => {
   const renderer = await renderRoot();
   act(() => { renderer.root.findByType(LoginScreen).props.onShowRegister(); });

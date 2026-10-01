@@ -42,6 +42,7 @@ it('configures the iOS client and Web client once, returning only an ID token', 
     status: 'success', credential: {idToken: 'google-id-token'},
   });
   await requestGoogleIdentity();
+  expect(google.signIn).toHaveBeenCalledTimes(2);
   expect(google.configure).toHaveBeenCalledTimes(1);
   expect(google.configure).toHaveBeenCalledWith({
     webClientId: 'web.apps.googleusercontent.com',

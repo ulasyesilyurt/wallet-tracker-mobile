@@ -1,5 +1,6 @@
 import {ApiError} from '../src/api/client';
-import {classifyAuthError} from '../src/auth/authErrors';
+import {classifyAuthError, socialAuthError} from '../src/auth/authErrors';
+import {ProviderAuthError} from '../src/auth/providerAuth';
 import {verificationModes} from '../src/auth/verificationModes';
 
 it('defines presentation-only copy and gate controls for all four verification modes', () => {
@@ -46,4 +47,28 @@ it('classifies known fetch failures without treating arbitrary exceptions as net
   expect(classifyAuthError(new Error('Network request failed'))).toBe('unknown');
   expect(classifyAuthError(new TypeError('Bad application state'))).toBe('unknown');
   expect(classifyAuthError(null)).toBe('unknown');
+});
+
+it.each([
+  ['AUTH_INVALID_PROVIDER_TOKEN', 'We couldn’t verify your Google sign-in. Please try again.', 'retry', 'error'],
+  ['AUTH_PROVIDER_UNAVAILABLE', 'Google sign-in is temporarily unavailable. Try again later or continue with email.', 'unavailable', 'warning'],
+  ['AUTH_LINK_REQUIRED', 'An existing ChainBell account may be associated with this sign-in. Use your existing sign-in method.', 'linkRequired', 'neutral'],
+  ['AUTH_EMAIL_REQUIRED', 'This provider didn’t share a usable email address. Continue with email instead.', 'emailRequired', 'neutral'],
+] as const)('maps social backend error %s to safe copy', (code, message, kind, tone) => {
+  expect(socialAuthError(new ApiError(409, 'Private backend detail', code), 'google')).toEqual({message, kind, tone});
+});
+
+it('maps Apple, network, native, and unknown social errors without exposing raw messages', () => {
+  expect(socialAuthError(new ApiError(401, 'Private token detail', 'AUTH_INVALID_PROVIDER_TOKEN'), 'apple').message)
+    .toBe('We couldn’t verify your Apple sign-in. Please try again.');
+  expect(socialAuthError(new TypeError('Network request failed'), 'google').message)
+    .toBe('Couldn’t connect. Check your connection and try again.');
+  expect(socialAuthError(new ProviderAuthError('google', 'PLAY_SERVICES_NOT_AVAILABLE'), 'google').message)
+    .toContain('unavailable right now');
+  expect(socialAuthError(new ApiError(500, 'Private server detail', 'OTHER'), 'apple').message)
+    .toBe('ChainBell sign-in is temporarily unavailable. Try again later or continue with email.');
+  expect(socialAuthError(new ApiError(429, 'Private rate limit detail'), 'google').message)
+    .toBe('Too many sign-in attempts. Wait a moment and try again.');
+  expect(socialAuthError(new ProviderAuthError('apple', 'NATIVE_FAILURE'), 'apple').message)
+    .toBe('Couldn’t open Apple sign-in. Please try again.');
 });

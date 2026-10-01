@@ -70,7 +70,7 @@ it('keeps only supported sign-in actions, validates on blur, and toggles passwor
   expect(button(renderer, 'Sign in').props.disabled).toBe(true);
   expect(copy(renderer)).toContain('Welcome back to ChainBell.');
   expect(copy(renderer)).toContain('Forgot password?');
-  expect(copy(renderer)).not.toMatch(/Continue with Apple|Continue with Google/);
+  expect(copy(renderer)).toContain('Continue with Google');
 
   act(() => {
     input(renderer, 'Email').props.onChangeText('invalid');
@@ -146,7 +146,8 @@ it('keeps the optional name, eight-character rule, and existing registration pay
   act(() => { renderer = TestRenderer.create(<RegisterScreen onShowLogin={onShowLogin} />); });
   expect(button(renderer, 'Create account').props.disabled).toBe(true);
   expect(copy(renderer)).toContain('8+ characters');
-  expect(copy(renderer)).not.toMatch(/number or symbol|verification|Continue with Apple|Continue with Google/i);
+  expect(copy(renderer)).not.toMatch(/number or symbol|verification/i);
+  expect(copy(renderer)).toContain('Continue with Google');
 
   act(() => {
     input(renderer, 'Email').props.onChangeText(' user@example.com ');

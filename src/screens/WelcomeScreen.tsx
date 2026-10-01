@@ -1,23 +1,38 @@
-import React from 'react';
-import {Image, StyleSheet, Text, View} from 'react-native';
-import {AuthFooterLink, AuthScaffold, PrimaryAuthButton} from '../components/AuthUI';
+import React, {useState} from 'react';
+import {Image, Platform, StyleSheet, Text, View} from 'react-native';
+import {AuthFooterLink, AuthScaffold, PrimaryAuthButton, SecondaryAuthButton} from '../components/AuthUI';
+import {SocialAuthButtons} from '../components/SocialAuthButtons';
 import {authColors} from '../theme/auth';
 
 type WelcomeScreenProps = {
   onContinue: () => void;
+  onShowRegister: () => void;
 };
 
 const chainBellLogo = require('../assets/chainbell-logo.png');
 
-export function WelcomeScreen({onContinue}: WelcomeScreenProps) {
+export function WelcomeScreen({onContinue, onShowRegister}: WelcomeScreenProps) {
+  const [socialBusy, setSocialBusy] = useState(false);
+  const [hasProviders, setHasProviders] = useState(Platform.OS === 'ios' || Platform.OS === 'android');
   return (
     <AuthScaffold
       testID="welcome"
       topSpacing={20}
       footer={
         <View style={styles.footer}>
-          <PrimaryAuthButton label="Continue with email" onPress={onContinue} />
-          <AuthFooterLink prompt="Already have an account?" linkLabel="Sign in" onPress={onContinue} />
+          <SocialAuthButtons
+            testID="welcome.social"
+            onBusyChange={setSocialBusy}
+            onAvailabilityChange={setHasProviders}
+            linkAction={{label: 'Sign in', onPress: onContinue}}
+            emailRequiredAction={{label: 'Use email', onPress: onShowRegister}}
+          />
+          <View style={socialBusy && styles.emailDisabled}>
+            {hasProviders ?
+              <SecondaryAuthButton label="Continue with email" onPress={onContinue} disabled={socialBusy} testID="welcome.email" /> :
+              <PrimaryAuthButton label="Continue with email" onPress={onContinue} disabled={socialBusy} testID="welcome.email" />}
+          </View>
+          <AuthFooterLink prompt="Already have an account?" linkLabel="Sign in" onPress={onContinue} disabled={socialBusy} />
         </View>
       }>
         <View style={styles.brandRow}>
@@ -122,5 +137,6 @@ const styles = StyleSheet.create({
   previewMeta: {color: authColors.textTertiary, fontSize: 11, marginTop: 4},
   previewTime: {color: authColors.textTertiary, fontSize: 11, alignSelf: 'flex-start', marginTop: 15},
   previewDivider: {height: 1, backgroundColor: '#1F2939', marginLeft: 46},
-  footer: {paddingTop: 8, gap: 8},
+  footer: {paddingTop: 8, gap: 10},
+  emailDisabled: {opacity: 0.4},
 });

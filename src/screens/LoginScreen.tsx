@@ -1,5 +1,5 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {StyleSheet, TextInput, View} from 'react-native';
+import {Platform, StyleSheet, TextInput, useWindowDimensions, View} from 'react-native';
 import {useAuth} from '../auth/AuthContext';
 import {classifyAuthError} from '../auth/authErrors';
 import {hasAuthFieldErrors, validateLogin, type AuthFieldErrors} from '../auth/validation';
@@ -7,12 +7,14 @@ import {
   AuthFooterLink,
   AuthHeader,
   AuthNotice,
+  AuthOrDivider,
   AuthScaffold,
   AuthTextField,
   AuthTextLink,
   PasswordField,
   PrimaryAuthButton,
 } from '../components/AuthUI';
+import {SocialAuthButtons, type SocialAuthButtonsHandle} from '../components/SocialAuthButtons';
 
 type LoginScreenProps = {
   onShowRegister: () => void;
@@ -22,16 +24,21 @@ type LoginScreenProps = {
 };
 
 export function LoginScreen({onShowRegister, onForgotPassword, initialEmail = '', focusEmail = false}: LoginScreenProps) {
+  const compact = useWindowDimensions().height < 780;
   const {login} = useAuth();
   const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState('');
   const [fieldErrors, setFieldErrors] = useState<AuthFieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
+  const [socialBusy, setSocialBusy] = useState(false);
+  const [hasProviders, setHasProviders] = useState(Platform.OS === 'ios' || Platform.OS === 'android');
   const [error, setError] = useState<string | null>(null);
   const [focusPasswordAfterError, setFocusPasswordAfterError] = useState(false);
   const submittingRef = useRef(false);
+  const socialBusyRef = useRef(false);
   const passwordInputRef = useRef<TextInput>(null);
   const emailInputRef = useRef<TextInput>(null);
+  const socialRef = useRef<SocialAuthButtonsHandle>(null);
 
   useEffect(() => {
     if (focusEmail) emailInputRef.current?.focus();
@@ -45,7 +52,8 @@ export function LoginScreen({onShowRegister, onForgotPassword, initialEmail = ''
   }, [focusPasswordAfterError, submitting]);
 
   async function handleLogin() {
-    if (submittingRef.current) return;
+    if (submittingRef.current || socialBusyRef.current) return;
+    socialRef.current?.clearNotice();
 
     const nextErrors = validateLogin(email, password);
     setFieldErrors(nextErrors);
@@ -87,10 +95,23 @@ export function LoginScreen({onShowRegister, onForgotPassword, initialEmail = ''
     <AuthScaffold
       testID="login"
       navLeading="none"
-      footer={<AuthFooterLink prompt="New to ChainBell?" linkLabel="Create account" onPress={onShowRegister} disabled={submitting} />}>
+      footer={<AuthFooterLink prompt="New to ChainBell?" linkLabel="Create account" onPress={onShowRegister} disabled={submitting || socialBusy} />}>
       <AuthHeader title="Sign in" subtitle="Welcome back to ChainBell." showNavigationRow={false} />
 
-      <View style={styles.form}>
+      <View style={hasProviders ? compact ? styles.socialCompact : styles.socialNormal : undefined}>
+        <SocialAuthButtons
+          ref={socialRef}
+          testID="login.social"
+          disabled={submitting}
+          onAvailabilityChange={setHasProviders}
+          onBusyChange={busy => { socialBusyRef.current = busy; setSocialBusy(busy); }}
+          linkAction={{label: 'Use password', onPress: () => emailInputRef.current?.focus()}}
+          emailRequiredAction={{label: 'Use email', onPress: onShowRegister}}
+        />
+      </View>
+      {hasProviders ? <View style={compact ? styles.dividerCompact : styles.dividerNormal}><AuthOrDivider /></View> : null}
+
+      <View style={[styles.form, hasProviders && (compact ? styles.formSocialCompact : styles.formSocialNormal)]}>
         <AuthTextField
           ref={emailInputRef}
           label="Email"
@@ -104,7 +125,7 @@ export function LoginScreen({onShowRegister, onForgotPassword, initialEmail = ''
           }))}
           returnKeyType="next"
           onSubmitEditing={() => passwordInputRef.current?.focus()}
-          editable={!submitting}
+          editable={!submitting && !socialBusy}
           placeholder="you@email.com"
         />
         <PasswordField
@@ -120,25 +141,25 @@ export function LoginScreen({onShowRegister, onForgotPassword, initialEmail = ''
           }))}
           returnKeyType="go"
           onSubmitEditing={handleLogin}
-          editable={!submitting}
+          editable={!submitting && !socialBusy}
           placeholder="Password"
         />
 
         <AuthTextLink
           label="Forgot password?"
-          disabled={submitting}
+          disabled={submitting || socialBusy}
           onPress={() => onForgotPassword(email.trim())}
           align="right"
         />
 
         {error ? <View style={styles.notice}><AuthNotice tone="error" message={error} /></View> : null}
-        <View style={styles.submitArea}>
+        <View style={[styles.submitArea, socialBusy && styles.emailPathDisabled]}>
           <PrimaryAuthButton
             label="Sign in"
             accessibilityLabel="Sign in"
             loadingLabel="Signing in…"
             loading={submitting}
-            disabled={submitting || !email.trim() || !password}
+            disabled={submitting || socialBusy || !email.trim() || !password}
             onPress={handleLogin}
           />
         </View>
@@ -149,6 +170,13 @@ export function LoginScreen({onShowRegister, onForgotPassword, initialEmail = ''
 
 const styles = StyleSheet.create({
   form: {marginTop: 12},
+  formSocialNormal: {marginTop: 20},
+  formSocialCompact: {marginTop: 16},
+  socialNormal: {marginTop: 24},
+  socialCompact: {marginTop: 20},
+  dividerNormal: {marginTop: 20},
+  dividerCompact: {marginTop: 16},
   notice: {marginTop: 20},
   submitArea: {marginTop: 24},
+  emailPathDisabled: {opacity: 0.4},
 });

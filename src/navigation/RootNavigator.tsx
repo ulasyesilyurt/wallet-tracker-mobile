@@ -61,7 +61,16 @@ export function RootNavigator() {
   function continueFromWelcome() {
     setForceWelcome(false);
     setHasSeenWelcome(true);
+    setAuthEmail('');
+    setAuthRoute('login');
+    setFocusLoginEmail(false);
     AsyncStorage.setItem(WELCOME_SEEN_KEY, 'true').catch(() => {});
+  }
+
+  function showRegisterFromWelcome() {
+    continueFromWelcome();
+    setRegistrationEmail('');
+    setAuthRoute('register');
   }
 
   function exitVerification(destination: 'welcome' | 'register' | 'login') {
@@ -83,12 +92,14 @@ export function RootNavigator() {
 
   if (!user) {
     if (forceWelcome || !hasSeenWelcome) {
-      return <WelcomeScreen onContinue={continueFromWelcome} />;
+      return <WelcomeScreen onContinue={continueFromWelcome} onShowRegister={showRegisterFromWelcome} />;
     }
 
     if (authRoute === 'register') {
       return <RegisterScreen initialEmail={registrationEmail} onShowLogin={() => {
         setRegistrationEmail('');
+        setAuthEmail('');
+        setFocusLoginEmail(false);
         setAuthRoute('login');
       }} />;
     }
