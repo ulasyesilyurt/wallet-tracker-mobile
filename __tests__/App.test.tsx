@@ -1,13 +1,13 @@
 import React from 'react';
-import {PermissionsAndroid, Platform, StatusBar} from 'react-native';
+import {PermissionsAndroid, Platform, SafeAreaView, StatusBar, StyleSheet, View} from 'react-native';
 import TestRenderer, {act} from 'react-test-renderer';
 import messaging from '@react-native-firebase/messaging';
 import App from '../App';
 import {PushRegistrationManager} from '../src/notifications/PushRegistrationManager';
-import {useAuth} from '../src/auth/AuthContext';
 import {colors} from '../src/theme/colors';
 import {authColors} from '../src/theme/auth';
 import {walletsColors} from '../src/theme/wallets';
+import {SafeAreaScreen} from '../src/components/SafeAreaScreen';
 
 jest.mock('@react-native-firebase/messaging', () => {
   const client = {
@@ -21,10 +21,10 @@ jest.mock('@react-native-firebase/messaging', () => {
 });
 jest.mock('react-native-safe-area-context', () => ({
   SafeAreaProvider: ({children}: {children: React.ReactNode}) => children,
+  useSafeAreaInsets: () => ({top: 0, right: 0, bottom: 0, left: 0}),
 }));
 jest.mock('../src/auth/AuthContext', () => ({
   AuthProvider: ({children}: {children: React.ReactNode}) => children,
-  useAuth: jest.fn(),
 }));
 jest.mock('../src/navigation/RootNavigator', () => ({RootNavigator: () => null}));
 jest.mock('../src/notifications/PushRegistrationManager', () => ({
@@ -35,7 +35,6 @@ const client = messaging();
 const requestPermission = jest.mocked(client.requestPermission);
 const registerForRemoteMessages = jest.mocked(client.registerDeviceForRemoteMessages);
 const pushManager = jest.mocked(PushRegistrationManager);
-const auth = jest.mocked(useAuth);
 const originalOS = Platform.OS;
 
 async function renderApp() {
@@ -50,27 +49,27 @@ async function renderApp() {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  auth.mockReturnValue({user: null} as ReturnType<typeof useAuth>);
   registerForRemoteMessages.mockResolvedValue(undefined);
   jest.spyOn(PermissionsAndroid, 'request').mockResolvedValue(PermissionsAndroid.RESULTS.GRANTED);
 });
 
-it('matches the auth safe-area background without changing signed-in chrome', async () => {
-  expect(walletsColors.background).toBe('#08090B');
-  expect(authColors.background).toBe('#070A12');
-  let renderer = await renderApp();
-  expect(renderer.root.findByType(StatusBar).props.backgroundColor).toBe(authColors.background);
-  act(() => renderer.unmount());
-
-  auth.mockReturnValue({user: {id: 'user-1', emailVerified: false}} as ReturnType<typeof useAuth>);
-  renderer = await renderApp();
-  expect(renderer.root.findByType(StatusBar).props.backgroundColor).toBe(authColors.background);
-  act(() => renderer.unmount());
-
-  auth.mockReturnValue({user: {id: 'user-1', emailVerified: true}} as ReturnType<typeof useAuth>);
-  renderer = await renderApp();
+it('uses the shared background for auth, authenticated screens, and the iOS safe area', async () => {
+  expect(colors.background).toBe('#08090B');
+  expect(walletsColors.background).toBe(colors.background);
+  expect(authColors.background).toBe(colors.background);
+  const renderer = await renderApp();
   expect(renderer.root.findByType(StatusBar).props.backgroundColor).toBe(colors.background);
+  expect(StyleSheet.flatten(renderer.root.findByType(SafeAreaView).props.style).backgroundColor)
+    .toBe(colors.background);
   act(() => renderer.unmount());
+});
+
+it('gives shared app screens the same background by default', () => {
+  let renderer: TestRenderer.ReactTestRenderer;
+  act(() => { renderer = TestRenderer.create(<SafeAreaScreen testID="screen" />); });
+  expect(StyleSheet.flatten(renderer!.root.findByType(View).props.style).backgroundColor)
+    .toBe(colors.background);
+  act(() => renderer!.unmount());
 });
 
 afterEach(() => {

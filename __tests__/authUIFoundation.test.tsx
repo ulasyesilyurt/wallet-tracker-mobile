@@ -73,7 +73,7 @@ it('scaffolds a safe, keyboard-aware auth screen with accessible navigation and 
   const avoidingView = renderer.root.findByType(KeyboardAvoidingView);
   const scroll = renderer.root.findByType(ScrollView);
   expect(avoidingView.props.behavior).toBe('padding');
-  expect(StyleSheet.flatten(avoidingView.props.style).backgroundColor).toBe('#070A12');
+  expect(StyleSheet.flatten(avoidingView.props.style).backgroundColor).toBe(authColors.background);
   expect(scroll.props.keyboardShouldPersistTaps).toBe('handled');
   expect(StyleSheet.flatten(scroll.props.contentContainerStyle)).toMatchObject({
     flexGrow: 1, paddingTop: 0, paddingBottom: 8, paddingLeft: 20, paddingRight: 20,

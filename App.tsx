@@ -2,19 +2,15 @@ import React, {useEffect, useState} from 'react';
 import {PermissionsAndroid, Platform, SafeAreaView, StatusBar, StyleSheet} from 'react-native';
 import messaging from '@react-native-firebase/messaging';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
-import {AuthProvider, useAuth} from './src/auth/AuthContext';
+import {AuthProvider} from './src/auth/AuthContext';
 import {RootNavigator} from './src/navigation/RootNavigator';
 import {PushRegistrationManager} from './src/notifications/PushRegistrationManager';
 import {colors} from './src/theme/colors';
-import {authColors} from './src/theme/auth';
 
 function AppContent({iosPushReady}: {iosPushReady: boolean}) {
-  const {user} = useAuth();
-  const backgroundColor = user?.emailVerified === true ? colors.background : authColors.background;
-
   return (
-    <SafeAreaView style={[styles.container, {backgroundColor}]}>
-      <StatusBar barStyle="light-content" backgroundColor={backgroundColor} />
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
       <PushRegistrationManager enabled={iosPushReady} />
       <RootNavigator />
     </SafeAreaView>
@@ -94,5 +90,6 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: colors.background,
   },
 });

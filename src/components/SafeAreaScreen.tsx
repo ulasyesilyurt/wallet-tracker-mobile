@@ -1,6 +1,7 @@
 import React from 'react';
-import {Platform, ScrollView, View, type ScrollViewProps, type ViewProps} from 'react-native';
+import {Platform, ScrollView, StyleSheet, View, type ScrollViewProps, type ViewProps} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {colors} from '../theme/colors';
 
 type SafeAreaScreenProps = ViewProps & {
   topPadding?: number;
@@ -16,10 +17,12 @@ function useScreenTopPadding(topPadding: number) {
 // Use for full screens under App's native SafeAreaView, which handles iOS insets.
 export function SafeAreaScreen({style, topPadding = 0, ...props}: SafeAreaScreenProps) {
   const topStyle = useScreenTopPadding(topPadding);
-  return <View {...props} style={[style, topStyle]} />;
+  return <View {...props} style={[styles.screen, style, topStyle]} />;
 }
 
 export function SafeAreaScrollScreen({style, ...props}: ScrollViewProps) {
   const topStyle = useScreenTopPadding(0);
-  return <ScrollView {...props} style={[style, topStyle]} />;
+  return <ScrollView {...props} style={[styles.screen, style, topStyle]} />;
 }
+
+const styles = StyleSheet.create({screen: {backgroundColor: colors.background}});

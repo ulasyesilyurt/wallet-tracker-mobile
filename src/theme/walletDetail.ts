@@ -1,6 +1,8 @@
-// Scoped to Wallet Detail; the rest of the app keeps its existing theme.
+import {colors} from './colors';
+
+// Shared by Wallet Detail and the app's other authenticated screen palettes.
 export const walletDetailColors = {
-  background: '#08090B',
+  background: colors.background,
   card: '#101216',
   elevated: '#171A1F',
   selected: '#1E232B',

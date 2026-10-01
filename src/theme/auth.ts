@@ -1,6 +1,8 @@
-// Auth-only palette from the approved ChainBell design. Other app screens retain their theme.
+import {colors} from './colors';
+
+// Auth-specific accents and surfaces share the app's base background.
 export const authColors = {
-  background: '#070A12',
+  background: colors.background,
   surface: '#0D1220',
   text: '#F2F5FA',
   textSecondary: '#B4BCCB',
